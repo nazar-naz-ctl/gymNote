@@ -1,0 +1,164 @@
+{
+  "8959011768": {
+    "id": 8959011768,
+    "name": "Тест",
+    "username": null,
+    "gender": "male",
+    "age": "21-25",
+    "level": "intermediate",
+    "goal": "toning",
+    "location": "home",
+    "days": "6",
+    "injuries": "knees",
+    "injuries_label": "🦵 Коліна",
+    "subscription": "premium",
+    "trial_end": null,
+    "subscription_end": "2026-06-29",
+    "registered": true,
+    "referred_by": null,
+    "joined_giveaway": 1,
+    "custom_workouts": [
+      {
+        "name": "Спина",
+        "exercises": [
+          {
+            "name": "Підтягування",
+            "sets": 4,
+            "reps": 10
+          },
+          {
+            "name": "Тяга в хамері",
+            "sets": 4,
+            "reps": 8
+          }
+        ]
+      }
+    ],
+    "results": {
+      "Підтягування": [
+        {
+          "weight": 60.0,
+          "reps": 15,
+          "date": "01.06.2026"
+        },
+        {
+          "weight": 70.0,
+          "reps": 12,
+          "date": "01.06.2026"
+        },
+        {
+          "weight": 120.0,
+          "reps": 6,
+          "date": "01.06.2026"
+        },
+        {
+          "weight": 0,
+          "reps": 10,
+          "date": "01.06.2026"
+        }
+      ],
+      "Присідання": [
+        {
+          "weight": 200.0,
+          "reps": 4,
+          "date": "01.06.2026"
+        }
+      ]
+    }
+  },
+  "460948326": {
+    "id": 460948326,
+    "name": "Олег",
+    "username": "m_eateater",
+    "gender": "male",
+    "age": "26-30",
+    "level": "advanced",
+    "goal": "muscle_gain",
+    "location": "gym",
+    "days": "5",
+    "injuries": "knees",
+    "injuries_label": "🦵 Коліна",
+    "subscription": "premium",
+    "trial_end": "2026-06-07",
+    "subscription_end": null,
+    "registered": true,
+    "referred_by": 8959011768,
+    "joined_giveaway": 1
+  },
+  "8078092967": {
+    "id": 8078092967,
+    "name": "Kvitochka🌸",
+    "username": "kvitka11anastasiya",
+    "gender": "female",
+    "age": "21-25",
+    "level": "beginner",
+    "goal": "weight_loss",
+    "location": "gym",
+    "days": "3",
+    "injuries": "none",
+    "injuries_label": "✅ Немає",
+    "subscription": "premium",
+    "trial_end": "2026-06-08",
+    "subscription_end": null,
+    "registered": true,
+    "referred_by": 8959011768,
+    "joined_giveaway": 1
+  },
+  "questions": [
+    {
+      "user_id": 8078092967,
+      "name": "Kvitochka🌸",
+      "subscription": "premium",
+      "question": "Любимий",
+      "answered": true,
+      "answer": "Люблю тебе 🫶"
+    },
+    {
+      "user_id": 8959011768,
+      "name": "Тест",
+      "subscription": "premium",
+      "question": "1",
+      "answered": true,
+      "answer": "2"
+    },
+    {
+      "user_id": 8078092967,
+      "name": "Kvitochka🌸",
+      "subscription": "premium",
+      "question": "Мій любимий коханий",
+      "answered": true,
+      "answer": "Таки побачила"
+    }
+  ],
+  "935472623": {
+    "id": 935472623,
+    "name": "Vitalii",
+    "username": "markovych_v",
+    "gender": "male",
+    "age": "31-35",
+    "level": "intermediate",
+    "goal": "toning",
+    "location": "gym",
+    "days": "3",
+    "injuries": "none",
+    "injuries_label": "✅ Немає",
+    "subscription": "premium",
+    "trial_end": "2026-06-08",
+    "subscription_end": null,
+    "registered": true,
+    "referred_by": 8959011768,
+    "joined_giveaway": 1,
+    "custom_workouts": [
+      {
+        "name": "День А - груди",
+        "exercises": [
+          {
+            "name": "Підтягування",
+            "sets": 4,
+            "reps": 12
+          }
+        ]
+      }
+    ]
+  }
+}
