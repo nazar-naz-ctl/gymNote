@@ -1,28 +1,26 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-def main_menu_kb(subscription: str = "free") -> InlineKeyboardMarkup:
+def main_menu_kb(subscription: str = "free", channel_link: str = None) -> InlineKeyboardMarkup:
     buttons = []
 
-    # Тренування — всім
     buttons.append([InlineKeyboardButton(text="💪 Тренування", callback_data="menu_workout")])
 
-    # Прогрес — стандарт і преміум
     if subscription in ("standard", "premium"):
         buttons.append([InlineKeyboardButton(text="📊 Мій прогрес", callback_data="progress")])
 
-    # Поради — всім
     buttons.append([InlineKeyboardButton(text="💡 Поради", callback_data="tips")])
 
-    # Від тренера — преміум
     if subscription == "premium":
         buttons.append([InlineKeyboardButton(text="📬 Від тренера", callback_data="menu_trainer_contact")])
     else:
         buttons.append([InlineKeyboardButton(text="📬 Зв'язок з тренером", callback_data="contact_trainer")])
 
-    # Профіль — всім
     buttons.append([InlineKeyboardButton(text="💬 Підтримка", callback_data="support")])
     buttons.append([InlineKeyboardButton(text="👤 Профіль", callback_data="menu_profile")])
+
+    if channel_link:
+        buttons.append([InlineKeyboardButton(text="📢 Наш канал", url=channel_link)])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 

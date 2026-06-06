@@ -100,3 +100,8 @@ async def start_new_giveaway(current_user_count: int) -> int:
     db["giveaway_start_count"] = current_user_count
     await _save(db)
     return number
+
+
+async def get_channel_link() -> str:
+    db = await _load()
+    return db.get("channel_link", None)

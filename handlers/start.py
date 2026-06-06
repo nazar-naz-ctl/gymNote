@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from datetime import datetime
 
 from config import TRAINER_ID
-from database import user_exists, get_user, update_user_field
+from database import user_exists, get_user, update_user_field, get_channel_link
 from keyboards import role_kb, main_menu_kb, trainer_menu_kb
 from handlers.registration import start_registration
 
@@ -52,7 +52,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
                         f"⚠️ Твій пробний період закінчився.\n"
                         f"Ти перейшов на безкоштовний тариф.\n\n"
                         f"Обирай:",
-                        reply_markup=main_menu_kb("free"),
+                        reply_markup=main_menu_kb("free", channel_link=await get_channel_link()),
                     )
                     return
             except ValueError:
@@ -60,7 +60,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 
         await message.answer(
             f"👋 З поверненням, {name}!\n\nОбирай:",
-            reply_markup=main_menu_kb(user.get("subscription", "free")),
+            reply_markup=main_menu_kb(user.get("subscription", "free"), channel_link=await get_channel_link()),
         )
         return
 

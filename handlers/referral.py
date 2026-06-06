@@ -1,7 +1,7 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
-from database import get_user, get_all_users, get_giveaway_number
+from database import get_user, get_all_users, get_giveaway_number, get_channel_link
 from keyboards import main_menu_kb
 
 router = Router()
@@ -194,5 +194,5 @@ async def back_to_main(callback: CallbackQuery) -> None:
     subscription = user.get("subscription", "free") if user else "free"
     await callback.message.edit_text(
         "Обирай:",
-        reply_markup=main_menu_kb(subscription),
+        reply_markup=main_menu_kb(subscription, channel_link=await get_channel_link()),
     )

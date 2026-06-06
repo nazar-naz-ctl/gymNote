@@ -10,6 +10,7 @@ from .db import (
     get_personal_record,
     get_giveaway_number,
     start_new_giveaway,
+    get_channel_link,
     _load,
     _save,
 )
@@ -26,6 +27,7 @@ all = [
     "get_personal_record",
     "get_giveaway_number",
     "start_new_giveaway",
+    "get_channel_link",
     "_load",
     "_save",
 ]

@@ -6,7 +6,7 @@
     "gender": "male",
     "age": "21-25",
     "level": "intermediate",
-    "goal": "toning",
+    "goal": "strength",
     "location": "home",
     "days": "6",
     "injuries": "knees",
@@ -16,55 +16,7 @@
     "subscription_end": "2026-06-29",
     "registered": true,
     "referred_by": null,
-    "joined_giveaway": 1,
-    "custom_workouts": [
-      {
-        "name": "Спина",
-        "exercises": [
-          {
-            "name": "Підтягування",
-            "sets": 4,
-            "reps": 10
-          },
-          {
-            "name": "Тяга в хамері",
-            "sets": 4,
-            "reps": 8
-          }
-        ]
-      }
-    ],
-    "results": {
-      "Підтягування": [
-        {
-          "weight": 60.0,
-          "reps": 15,
-          "date": "01.06.2026"
-        },
-        {
-          "weight": 70.0,
-          "reps": 12,
-          "date": "01.06.2026"
-        },
-        {
-          "weight": 120.0,
-          "reps": 6,
-          "date": "01.06.2026"
-        },
-        {
-          "weight": 0,
-          "reps": 10,
-          "date": "01.06.2026"
-        }
-      ],
-      "Присідання": [
-        {
-          "weight": 200.0,
-          "reps": 4,
-          "date": "01.06.2026"
-        }
-      ]
-    }
+    "joined_giveaway": 1
   },
   "460948326": {
     "id": 460948326,
@@ -128,6 +80,14 @@
       "question": "Мій любимий коханий",
       "answered": true,
       "answer": "Таки побачила"
+    },
+    {
+      "user_id": 7089162376,
+      "name": "Вікторія Чуба",
+      "subscription": "premium",
+      "question": "Всі питання тобі приходять на цей бот?",
+      "answered": true,
+      "answer": "Так"
     }
   ],
   "935472623": {
@@ -160,5 +120,25 @@
         ]
       }
     ]
-  }
+  },
+  "7089162376": {
+    "id": 7089162376,
+    "name": "Вікторія Чуба",
+    "username": "Vikk_chu",
+    "gender": "female",
+    "age": "21-25",
+    "level": "intermediate",
+    "goal": "weight_loss",
+    "location": "gym",
+    "days": "3",
+    "injuries": "knees",
+    "injuries_label": "🦵 Коліна",
+    "subscription": "premium",
+    "trial_end": "2026-06-13",
+    "subscription_end": null,
+    "registered": true,
+    "referred_by": 8959011768,
+    "joined_giveaway": 1
+  },
+  "channel_link": "https://t.me/nazar_akademy"
 }

@@ -20,7 +20,8 @@ class PaymentStates(StatesGroup):
     waiting_screenshot_premium  = State()
 
 class SettingsStates(StatesGroup):
-        typing_requisites = State()
+    typing_requisites = State()
+    typing_channel = State()
 
 class PriceStates(StatesGroup):
         typing_standard = State()
@@ -409,9 +410,38 @@ async def trainer_stats(callback: CallbackQuery):
 
     unanswered = sum(1 for q in db.get("questions", []) if not q["answered"])
 
+    level_counts = (
+        f"🟢 Початківець: {levels['beginner']}\n"
+        f"🟡 Середній: {levels['intermediate']}\n"
+        f"🔴 Просунутий: {levels['advanced']}\n"
+        f"🔥 Атлет: {levels['athlete']}"
+    )
+
+    location_counts = (
+        f"🏋️ Зал: {locations['gym']}\n"
+        f"🌳 Вулиця: {locations['outdoor']}\n"
+        f"🏠 Вдома: {locations['home']}"
+    )
+
+    # Клієнти з простроченою підпискою
+    expired = []
+    for c in clients:
+        sub_end = c.get("subscription_end")
+        if sub_end:
+            try:
+                end_date = datetime.strptime(sub_end, "%Y-%m-%d")
+                if end_date < today and c["subscription"] != "free":
+                    expired.append(c.get("name", "—"))
+            except ValueError:
+                pass
+
+    expired_text = "\n".join(f"• {n}" for n in expired[:5]) if expired else "немає"
+    if len(expired) > 5:
+        expired_text += f"\n...і ще {len(expired) - 5}"
+
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📣 Розсилка", callback_data="t_broadcast")],
-        [InlineKeyboardButton(text="← Назад",     callback_data="main_menu")],
+        [InlineKeyboardButton(text="← Назад", callback_data="main_menu")],
     ])
     await callback.message.edit_text(
         f"📊 <b>Статистика</b>\n\n"
@@ -421,8 +451,9 @@ async def trainer_stats(callback: CallbackQuery):
         f"🆓 Безкоштовних: <b>{free}</b>\n\n"
         f"📅 Нових за тиждень: <b>{new_week}</b>\n"
         f"📅 Нових за місяць: <b>{new_month}</b>\n\n"
-        f"🏆 Популярний рівень: <b>{level_labels.get(top_level, top_level)}</b>\n"
-        f"📍 Популярна локація: <b>{location_labels.get(top_location, top_location)}</b>\n\n"
+        f"📊 <b>Рівні підготовки:</b>\n{level_counts}\n\n"
+        f"📍 <b>Локації:</b>\n{location_counts}\n\n"
+        f"⚠️ <b>Прострочена підписка ({len(expired)}):</b>\n{expired_text}\n\n"
         f"📬 Без відповіді: <b>{unanswered}</b>",
         reply_markup=kb,
     )
@@ -609,16 +640,19 @@ async def trainer_settings(callback: CallbackQuery):
     db = await _load()
     requisites = db.get("requisites", "Не вказано")
     prices = db.get("prices", {"standard": "200 грн", "premium": "450 грн"})
+    channel = db.get("channel_link", "Не вказано")
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 Змінити реквізити", callback_data="t_set_requisites")],
         [InlineKeyboardButton(text="💰 Ціни підписок",     callback_data="t_set_prices")],
+        [InlineKeyboardButton(text="📢 Змінити канал",     callback_data="t_set_channel")],
         [InlineKeyboardButton(text="← Назад",              callback_data="main_menu")],
     ])
     await callback.message.edit_text(
         f"⚙️ <b>Налаштування</b>\n\n"
-        f"⭐ Стандарт: {prices.get('standard', '200 грн')}\n"
+        f"⭐️ Стандарт: {prices.get('standard', '200 грн')}\n"
         f"👑 Преміум: {prices.get('premium', '450 грн')}\n\n"
-        f"💳 <b>Реквізити:</b>\n{requisites}",
+        f"💳 <b>Реквізити:</b>\n{requisites}\n\n"
+        f"📢 <b>Канал:</b> {channel}",
         reply_markup=kb,
     )
 
@@ -1083,3 +1117,23 @@ async def trainer_send_message_client(message: Message, state: FSMContext):
     elif answer:
         # Стара логіка відповіді на питання
         pass
+
+
+@router.callback_query(F.data == "t_set_channel")
+async def trainer_set_channel(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id != TRAINER_ID:
+        return
+    await state.set_state(SettingsStates.typing_channel)
+    await callback.message.edit_text(
+        "📢 Введи посилання на канал:\nНаприклад: https://t.me/gymnote_news",
+    )
+
+@router.message(SettingsStates.typing_channel)
+async def trainer_save_channel(message: Message, state: FSMContext):
+    if message.from_user.id != TRAINER_ID:
+        return
+    db = await _load()
+    db["channel_link"] = message.text.strip()
+    await _save(db)
+    await state.clear()
+    await message.answer("✅ Посилання на канал збережено!")
