@@ -16,7 +16,14 @@
     "subscription_end": "2026-06-29",
     "registered": true,
     "referred_by": null,
-    "joined_giveaway": 1
+    "joined_giveaway": 1,
+    "trainer_programs": [
+      {
+        "program": "123",
+        "date": "08.06.2026",
+        "read": false
+      }
+    ]
   },
   "460948326": {
     "id": 460948326,

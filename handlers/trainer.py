@@ -318,39 +318,37 @@ async def trainer_send_answer(message: Message, state: FSMContext):
     if message.from_user.id != TRAINER_ID:
         return
     data = await state.get_data()
-    index = data["answer_index"]
-    user_id = data["answer_user_id"]
+    index = data.get("answer_index")
+    user_id = data.get("answer_user_id") or data.get("message_to_user_id")
     answer = message.text.strip()
-    db = await _load()
-    unanswered = [q for q in db.get("questions", []) if not q["answered"]]
-    if index < len(unanswered):
-        for i, q in enumerate(db["questions"]):
-            if q == unanswered[index]:
-                db["questions"][i]["answered"] = True
-                db["questions"][i]["answer"] = answer
-                break
-    await _save(db)
     await state.clear()
-    try:
-        from aiogram import Bot
-        from aiogram.client.default import DefaultBotProperties
-        from aiogram.enums import ParseMode
-        bot = Bot(token=BOT_TOKEN,
-                  default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-        await bot.send_message(
-            user_id,
-            f"🔔 <b>Тренер відповів!</b>\n\n💬 {answer}",
-        )
-        await bot.session.close()
-    except Exception:
-        pass
+
+    if index is not None:
+        db = await _load()
+        unanswered = [q for q in db.get("questions", []) if not q["answered"]]
+        if index < len(unanswered):
+            for i, q in enumerate(db["questions"]):
+                if q == unanswered[index]:
+                    db["questions"][i]["answered"] = True
+                    db["questions"][i]["answer"] = answer
+                    break
+        await _save(db)
+
+    if user_id:
+        try:
+            from bot import bot
+            await bot.send_message(
+                user_id,
+                f"✉️ <b>Повідомлення від тренера:</b>\n\n{answer}",
+            )
+        except Exception:
+            pass
+
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📬 Вхідні", callback_data="t_inbox")],
-        [InlineKeyboardButton(text="🏠 Меню",   callback_data="main_menu")],
+        [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
     ])
     await message.answer("✅ <b>Відповідь надіслана!</b>", reply_markup=kb)
-
-
 # ── Тренер — статистика ───────────────────────────
 
 @router.callback_query(F.data == "t_stats")
@@ -393,11 +391,17 @@ async def trainer_stats(callback: CallbackQuery):
     # Популярні рівні
     levels = {"beginner": 0, "intermediate": 0, "advanced": 0, "athlete": 0}
     locations = {"gym": 0, "outdoor": 0, "home": 0}
-    for c in clients:
-        lvl = c.get("level", "")
+    for uid, data in all_users.items():
+        try:
+            int(uid)
+        except ValueError:
+            continue
+        if not isinstance(data, dict) or not data.get("registered"):
+            continue
+        lvl = data.get("level", "")
         if lvl in levels:
             levels[lvl] += 1
-        loc = c.get("location", "")
+        loc = data.get("location", "")
         if loc in locations:
             locations[loc] += 1
 
@@ -1091,32 +1095,31 @@ async def trainer_message_client(callback: CallbackQuery, state: FSMContext):
         ])
     )
 
+    @router.message(TrainerStates.typing_answer)
+    async def trainer_send_message_client(message: Message, state: FSMContext):
+        if message.from_user.id != TRAINER_ID:
+            return
+        data = await state.get_data()
+        user_id = data.get("message_to_user_id")
+        await state.clear()
 
-@router.message(TrainerStates.typing_answer)
-async def trainer_send_message_client(message: Message, state: FSMContext):
-    if message.from_user.id != TRAINER_ID:
-        return
-    data = await state.get_data()
-    user_id = data.get("message_to_user_id")
-    answer = data.get("answer_to")
-    await state.clear()
+        if user_id:
+            try:
+                from bot import bot
+                await bot.send_message(
+                    user_id,
+                    f"✉️ <b>Повідомлення від тренера:</b>\n\n{message.text}",
+                    parse_mode="HTML"
+                )
+                await message.answer(
+                    "✅ Повідомлення надіслано!",
+                    reply_markup=trainer_menu_kb()
+                )
+            except Exception:
+                await message.answer("❌ Не вдалось надіслати.", reply_markup=trainer_menu_kb())
+        else:
+            await message.answer("❌ Клієнта не знайдено.", reply_markup=trainer_menu_kb())
 
-    if user_id:
-        try:
-            from bot import bot
-            await bot.send_message(
-                user_id,
-                f"✉️ <b>Повідомлення від тренера:</b>\n\n{message.text}",
-            )
-            await message.answer(
-                "✅ Повідомлення надіслано!",
-                reply_markup=trainer_menu_kb(),
-            )
-        except Exception:
-            await message.answer("❌ Не вдалось надіслати.", reply_markup=trainer_menu_kb())
-    elif answer:
-        # Стара логіка відповіді на питання
-        pass
 
 
 @router.callback_query(F.data == "t_set_channel")
