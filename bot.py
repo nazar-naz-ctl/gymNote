@@ -100,6 +100,18 @@ async def check_subscriptions_daily():
 
 async def main():
     dp = Dispatcher(storage=MemoryStorage())
+    from aiogram import BaseMiddleware
+    from aiogram.types import TelegramObject
+    from typing import Callable, Dict, Any, Awaitable
+
+    class LoggingMiddleware(BaseMiddleware):
+        async def __call__(self, handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+                           event: TelegramObject, data: Dict[str, Any]) -> Any:
+            if hasattr(event, 'callback_query') and event.callback_query:
+                logger.info(f"CALLBACK: {event.callback_query.data}")
+            return await handler(event, data)
+
+    dp.update.middleware(LoggingMiddleware())
     dp.include_router(main_router)
     logger.info(f"🚀 {BOT_NAME} запущено")
     asyncio.create_task(check_subscriptions_daily())

@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from config import TRAINER_ID, BOT_TOKEN
-from database import get_user, _load, _save
+from database import get_user, update_user_field
 
 router = Router()
 
@@ -14,12 +14,11 @@ class ContactStates(StatesGroup):
 
 
 async def save_question(user_id: int, question: str) -> int:
-    db = await _load()
-    if "questions" not in db:
-        db["questions"] = []
+    from handlers.trainer import get_questions, save_questions
     user = await get_user(user_id)
     sub = user.get("subscription", "free") if user else "free"
-    db["questions"].append({
+    questions = await get_questions()
+    questions.append({
         "user_id":      user_id,
         "name":         user.get("name", "Невідомий") if user else "Невідомий",
         "subscription": sub,
@@ -27,17 +26,18 @@ async def save_question(user_id: int, question: str) -> int:
         "answered":     False,
         "answer":       None,
     })
-    await _save(db)
+    await save_questions(questions)
     position = sum(
-        1 for q in db["questions"]
+        1 for q in questions
         if not q["answered"] and q["subscription"] == sub
     )
     return position
 
 
 async def get_my_questions(user_id: int) -> list:
-    db = await _load()
-    return [q for q in db.get("questions", []) if q["user_id"] == user_id]
+    from handlers.trainer import get_questions
+    questions = await get_questions()
+    return [q for q in questions if q["user_id"] == user_id]
 
 
 @router.callback_query(F.data == "contact_trainer")

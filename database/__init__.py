@@ -11,8 +11,6 @@ from .db import (
     get_giveaway_number,
     start_new_giveaway,
     get_channel_link,
-    _load,
-    _save,
 )
 
 all = [
@@ -28,6 +26,4 @@ all = [
     "get_giveaway_number",
     "start_new_giveaway",
     "get_channel_link",
-    "_load",
-    "_save",
 ]

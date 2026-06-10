@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
 
-from database import get_user, _load, _save
+from database import get_user, update_user_field
 
 router = Router()
 
@@ -20,14 +20,10 @@ class WorkoutStates(StatesGroup):
 
 
 async def save_custom_workout(user_id: int, name: str, exercises: list) -> None:
-    db = await _load()
-    key = str(user_id)
-    if key not in db:
-        db[key] = {}
-    if "custom_workouts" not in db[key]:
-        db[key]["custom_workouts"] = []
-    db[key]["custom_workouts"].append({"name": name, "exercises": exercises})
-    await _save(db)
+    user = await get_user(user_id)
+    workouts = user.get("custom_workouts", []) if user else []
+    workouts.append({"name": name, "exercises": exercises})
+    await update_user_field(user_id, "custom_workouts", workouts)
 
 
 async def get_custom_workouts(user_id: int) -> list:
@@ -55,22 +51,18 @@ async def get_last_result(user_id: int, exercise: str) -> list:
 
 
 async def save_workout_result(user_id: int, exercise: str, sets: list) -> None:
-    db = await _load()
-    key = str(user_id)
-    if key not in db:
-        db[key] = {}
-    if "results" not in db[key]:
-        db[key]["results"] = {}
-    if exercise not in db[key]["results"]:
-        db[key]["results"][exercise] = []
+    user = await get_user(user_id)
+    results = user.get("results", {}) if user else {}
+    if exercise not in results:
+        results[exercise] = []
     today = datetime.now().strftime("%d.%m.%Y")
     for s in sets:
-        db[key]["results"][exercise].append({
+        results[exercise].append({
             "weight": s["weight"],
             "reps":   s["reps"],
             "date":   today,
         })
-    await _save(db)
+    await update_user_field(user_id, "results", results)
 
 
 @router.callback_query(F.data == "constructor")
@@ -418,14 +410,12 @@ async def finish_early(callback: CallbackQuery, state: FSMContext):
 async def delete_workout(callback: CallbackQuery):
     index = int(callback.data.replace("delete_workout_", ""))
     user_id = callback.from_user.id
-    db = await _load()
-    key = str(user_id)
-    workouts = db.get(key, {}).get("custom_workouts", [])
+    user = await get_user(user_id)
+    workouts = user.get("custom_workouts", []) if user else []
     if index < len(workouts):
         deleted_name = workouts[index]["name"]
         workouts.pop(index)
-        db[key]["custom_workouts"] = workouts
-        await _save(db)
+        await update_user_field(user_id, "custom_workouts", workouts)
         await callback.answer(f"🗑 '{deleted_name}' видалено!")
     await constructor_menu(callback)
 
