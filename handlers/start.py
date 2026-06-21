@@ -1,6 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from datetime import datetime
 
@@ -22,6 +22,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     if len(args) > 1 and args[1].startswith("ref_"):
         try:
             referrer_id = int(args[1].replace("ref_", ""))
+            print(f"DEBUG: referrer_id={referrer_id} for new user {user_id}")
             if referrer_id == user_id:
                 referrer_id = None
         except ValueError:
@@ -73,6 +74,12 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         reply_markup=role_kb(),
     )
 
+
+@router.message(Command("restart"))
+async def cmd_restart(message: Message, state: FSMContext) -> None:
+    await cmd_start(message, state)
+
+
 @router.callback_query(F.data == "menu_workout")
 async def menu_workout(callback: CallbackQuery):
     from database import get_user
@@ -81,6 +88,7 @@ async def menu_workout(callback: CallbackQuery):
 
     buttons = [
         [InlineKeyboardButton(text="📋 Програми тренувань", callback_data="programs")],
+        [InlineKeyboardButton(text="🔄 Повторити останнє", callback_data="repeat_last_workout")],
     ]
     if sub in ("standard", "premium"):
         buttons.append([InlineKeyboardButton(text="🛠 Конструктор", callback_data="constructor")])

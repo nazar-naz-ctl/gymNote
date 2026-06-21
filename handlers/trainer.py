@@ -558,7 +558,6 @@ async def trainer_client_sub(callback: CallbackQuery):
         return
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🆓 Безкоштовний", callback_data=f"t_set_sub_free_{user_id}")],
-        [InlineKeyboardButton(text="⭐️ Стандарт 30 днів", callback_data=f"t_set_sub_standard_{user_id}")],
         [InlineKeyboardButton(text="👑 Преміум 30 днів", callback_data=f"t_set_sub_premium_{user_id}")],
         [InlineKeyboardButton(text="➕ +7 днів", callback_data=f"t_add_days_7_{user_id}")],
         [InlineKeyboardButton(text="➕ +14 днів", callback_data=f"t_add_days_14_{user_id}")],
@@ -627,6 +626,7 @@ async def trainer_add_days(callback: CallbackQuery):
     else:
         current = today
     new_end = (current + timedelta(days=days)).strftime("%Y-%m-%d")
+    await update_user_field(user_id, "subscription", "premium")
     await update_user_field(user_id, "subscription_end", new_end)
     await update_user_field(user_id, "trial_end", None)
     try:
@@ -765,38 +765,19 @@ async def subscription_menu(callback: CallbackQuery):
     sub_icon = {"free": "🆓", "standard": "⭐", "premium": "👑"}
     icon = sub_icon.get(current, "🆓")
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⭐ Купити Стандарт", callback_data="buy_standard")],
         [InlineKeyboardButton(text="👑 Купити Преміум", callback_data="buy_premium")],
         [InlineKeyboardButton(text="← Назад", callback_data="menu_profile")],
     ])
     await callback.message.edit_text(
         f"💳 <b>Підписка</b>\n\n"
         f"Поточна: {icon} <b>{current}</b>\n\n"
-        f"⭐ Стандарт — {prices.get('standard', '200 грн')}/міс\n"
+        f"👑 Преміум — {prices.get('premium', '299 грн')}/міс\n"
         f"   Конструктор тренувань\n"
-        f"   Статистика і прогрес\n\n"
-        f"👑 Преміум — {prices.get('premium', '450 грн')}/міс\n"
-        f"   Все зі Стандарту\n"
+        f"   Статистика і прогрес\n"
         f"   Персональна програма від тренера\n\n"
         f"💳 <b>Реквізити:</b>\n{requisites}",
         reply_markup=kb,
     )
-
-@router.callback_query(F.data == "buy_standard")
-async def buy_standard(callback: CallbackQuery):
-    settings = await get_settings()
-    prices = settings.get("prices", {"standard": "200 грн"})
-    requisites = settings.get("requisites", "Реквізити не вказані")
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📸 Надіслати скріншот", callback_data="send_payment_standard")],
-        [InlineKeyboardButton(text="← Назад", callback_data="my_subscription")],
-    ])
-    await callback.message.edit_text(f"⭐ <b>Стандарт — {prices.get('standard', '200 грн')}/міс</b>\n\n"
-        f"1. Оплати на реквізити:\n{requisites}\n\n"
-        f"2. Натисни кнопку і надішли скріншот\n"
-        f"3. Тренер підтвердить і підписка активується",
-        reply_markup=kb,
-        )
 
 
 @router.callback_query(F.data == "buy_premium")
@@ -815,13 +796,6 @@ async def buy_premium(callback: CallbackQuery):
         f"3. Тренер підтвердить і підписка активується",
         reply_markup=kb,
     )
-
-
-@router.callback_query(F.data == "send_payment_standard")
-async def send_payment_standard(callback: CallbackQuery, state: FSMContext):
-    await state.update_data(payment_type="standard")
-    await state.set_state(PaymentStates.waiting_screenshot_standard)
-    await callback.message.edit_text("📸 Надішли скріншот оплати:")
 
 
 @router.callback_query(F.data == "send_payment_premium")
@@ -844,7 +818,6 @@ async def receive_payment_screenshot(message: Message, state: FSMContext):
         from bot import bot
         sub_text = "⭐️ Стандарт" if payment_type == "standard" else "👑 Преміум"
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Підтвердити Стандарт", callback_data=f"confirm_payment_standard_{user_id}")],
             [InlineKeyboardButton(text="✅ Підтвердити Преміум",  callback_data=f"confirm_payment_premium_{user_id}")],
             [InlineKeyboardButton(text="❌ Відхилити",            callback_data=f"reject_payment_{user_id}")],
         ])

@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/gymNote.iml" filepath="$PROJECT_DIR$/.idea/gymNote.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../gymnote-miniapp/.idea/gymnote-miniapp.iml" filepath="$PROJECT_DIR$/../gymnote-miniapp/.idea/gymnote-miniapp.iml" />
     </modules>
   </component>
 </project>

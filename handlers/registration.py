@@ -259,6 +259,7 @@ async def edit_field(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "reg_confirm")
 async def confirm_registration(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
     from datetime import datetime, timedelta
     data = await state.get_data()
     user_id = callback.from_user.id
@@ -313,12 +314,48 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext) -> No
 
     # +7 днів запрошувачу за реферала
     if referrer_id:
-            referrer = await get_user(referrer_id)
-            if referrer:
-                ref_trial = referrer.get("trial_end")
+        referrer = await get_user(referrer_id)
+        if referrer:
+            ref_trial = referrer.get("trial_end")
+            ref_sub_end = referrer.get("subscription_end")
+            base_date = datetime.now()
+            if ref_trial:
+                try:
+                    d = datetime.strptime(ref_trial, "%Y-%m-%d")
+                    if d > base_date:
+                        base_date = d
+                except ValueError:
+                    pass
+            elif ref_sub_end:
+                try:
+                    d = datetime.strptime(ref_sub_end, "%Y-%m-%d")
+                    if d > base_date:
+                        base_date = d
+                except ValueError:
+                    pass
+            new_end = (base_date + timedelta(days=7)).strftime("%Y-%m-%d")
+            await update_user_field(referrer_id, "subscription", "premium")
+            if ref_trial:
+                await update_user_field(referrer_id, "trial_end", new_end)
+            else:
+                await update_user_field(referrer_id, "subscription_end", new_end)
+            try:
+                from bot import bot
+                await bot.send_message(
+                    referrer_id,
+                    f"🎁 <b>+7 днів Преміум!</b>\n\n"
+                    f"Твій друг {callback.from_user.first_name} зареєструвався по твоєму посиланню.\n"
+                    f"Преміум продовжено до <b>{new_end}</b> 🔥"
+                )
+            except Exception:
+                pass
 
     await state.clear()
-    await callback.message.edit_text(
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(
         f"✅ <b>Реєстрацію завершено!</b>\n\n"
         f"Вітаємо в GymNote, {callback.from_user.first_name}! 💪\n\n"
         f"🎁 Тобі активовано <b>пробний період 7 днів Преміум!</b>\n"

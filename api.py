@@ -38,6 +38,9 @@ def verify_telegram(init_data: str) -> dict:
 
 
 def get_user_id(request: Request) -> int:
+    uid = request.headers.get("X-Telegram-User-Id", "")
+    if uid:
+        return int(uid)
     init_data = request.headers.get("X-Init-Data", "")
     tg_user = verify_telegram(init_data)
     return tg_user.get("id")

@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime
 
-from database import get_user, update_user_field
+from database import get_user, update_user_field, save_last_workout
 
 router = Router()
 
@@ -13,11 +13,12 @@ class WorkoutStates(StatesGroup):
     naming          = State()
     adding_exercise = State()
     adding_sets     = State()
-    adding_reps     = State()
     in_progress     = State()
     entering_weight = State()
-    entering_reps   = State()
+    replacing_ex    = State()
 
+
+# ── HELPERS ───────────────────────────────────────────────────────────────────
 
 async def save_custom_workout(user_id: int, name: str, exercises: list) -> None:
     user = await get_user(user_id)
@@ -65,55 +66,42 @@ async def save_workout_result(user_id: int, exercise: str, sets: list) -> None:
     await update_user_field(user_id, "results", results)
 
 
-@router.callback_query(F.data == "constructor")
-async def constructor_menu(callback: CallbackQuery):
-    workouts = await get_custom_workouts(callback.from_user.id)
-    buttons = []
-    for i, w in enumerate(workouts):
-        buttons.append([
-            InlineKeyboardButton(text=f"▶️ {w['name']}", callback_data=f"start_workout_{i}"),
-            InlineKeyboardButton(text="🗑", callback_data=f"delete_workout_{i}"),
-        ])
-    buttons.append([InlineKeyboardButton(text="➕ Створити тренування", callback_data="create_workout")])
-    buttons.append([InlineKeyboardButton(text="← Назад", callback_data="menu_workout")])
-    text = "🛠 <b>Конструктор</b>\n\nТвої тренування:" if workouts else "🛠 <b>Конструктор</b>\n\nЩе немає тренувань."
-    await callback.message.edit_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-    )
+def make_dots(total: int, done: int) -> str:
+    dots = ""
+    for i in range(total):
+        if i < done:
+            dots += "🟢"
+        elif i == done:
+            dots += "🔵"
+        else:
+            dots += "⚪️"
+    return dots
 
 
-@router.callback_query(F.data == "create_workout")
-async def create_workout(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(WorkoutStates.naming)
-    await state.update_data(exercises=[])
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
+def reps_kb_workout() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ 6", callback_data="reps_6"),
+            InlineKeyboardButton(text="✅ 8", callback_data="reps_8"),
+            InlineKeyboardButton(text="✅ 10", callback_data="reps_10"),
+            InlineKeyboardButton(text="✅ 12", callback_data="reps_12"),
+        ],
+        [
+            InlineKeyboardButton(text="✅ 15", callback_data="reps_15"),
+            InlineKeyboardButton(text="✅ 20", callback_data="reps_20"),
+        ],
+        [
+            InlineKeyboardButton(text="🔄 Замінити вправу", callback_data="replace_exercise"),
+            InlineKeyboardButton(text="⏭️ Пропустити", callback_data="skip_exercise"),
+        ],
+        [
+            InlineKeyboardButton(text="🏁 Завершити тренування", callback_data="finish_early"),
+        ],
     ])
-    await callback.message.edit_text(
-        "➕ <b>Нове тренування</b>\n\nВведи назву:\nНаприклад: <i>День A — Груди</i>",
-        reply_markup=kb,
-    )
 
 
-@router.message(WorkoutStates.naming)
-async def workout_set_name(message: Message, state: FSMContext):
-    await state.update_data(workout_name=message.text.strip())
-    await state.set_state(WorkoutStates.adding_exercise)
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
-    ])
-    await message.answer(
-        "💪 Введи назву першої вправи:",
-        reply_markup=kb,
-    )
-
-
-@router.message(WorkoutStates.adding_exercise)
-async def workout_add_exercise(message: Message, state: FSMContext):
-    await state.update_data(current_exercise=message.text.strip())
-    await state.set_state(WorkoutStates.adding_sets)
-    kb = InlineKeyboardMarkup(inline_keyboard=[
+def sets_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="3", callback_data="sets_3"),
             InlineKeyboardButton(text="4", callback_data="sets_4"),
@@ -126,284 +114,91 @@ async def workout_add_exercise(message: Message, state: FSMContext):
         ],
         [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
     ])
-    await message.answer(
-        f"💪 <b>{message.text}</b>\n\nКількість підходів:",
-        reply_markup=kb,
-    )
 
 
-@router.callback_query(WorkoutStates.adding_sets, F.data.startswith("sets_"))
-async def workout_set_sets(callback: CallbackQuery, state: FSMContext):
-    sets = int(callback.data.replace("sets_", ""))
-    await state.update_data(current_sets=sets)
-    await state.set_state(WorkoutStates.adding_reps)
-    kb = InlineKeyboardMarkup(inline_keyboard=[
+def reps_kb_create() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="6", callback_data="reps_6"),
-            InlineKeyboardButton(text="8", callback_data="reps_8"),
-            InlineKeyboardButton(text="10", callback_data="reps_10"),
+            InlineKeyboardButton(text="6", callback_data="reps_create_6"),
+            InlineKeyboardButton(text="8", callback_data="reps_create_8"),
+            InlineKeyboardButton(text="10", callback_data="reps_create_10"),
+            InlineKeyboardButton(text="12", callback_data="reps_create_12"),
         ],
         [
-            InlineKeyboardButton(text="12", callback_data="reps_12"),
-            InlineKeyboardButton(text="15", callback_data="reps_15"),
-            InlineKeyboardButton(text="20", callback_data="reps_20"),
+            InlineKeyboardButton(text="15", callback_data="reps_create_15"),
+            InlineKeyboardButton(text="20", callback_data="reps_create_20"),
         ],
         [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
     ])
-    data = await state.get_data()
-    await callback.message.edit_text(
-        f"💪 <b>{data['current_exercise']}</b>\nПідходів: {sets}\n\nКількість повторів:",
-        reply_markup=kb,
-    )
 
 
-@router.callback_query(WorkoutStates.adding_reps, F.data.startswith("reps_"))
-async def workout_set_reps(callback: CallbackQuery, state: FSMContext):
-    reps = int(callback.data.replace("reps_", ""))
-    data = await state.get_data()
-    exercises = data.get("exercises", [])
-    exercises.append({
-        "name": data["current_exercise"],
-        "sets": data["current_sets"],
-        "reps": reps,
-    })
-    await state.update_data(exercises=exercises)
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Ще вправу", callback_data="add_more_exercise")],
-        [InlineKeyboardButton(text="💾 Зберегти", callback_data="save_workout")],
-        [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
-    ])
-    text = f"✅ Додано: <b>{data['current_exercise']}</b> — {data['current_sets']}×{reps}\n\n<b>Вправи:</b>\n"
+def exercises_list_kb(exercises: list) -> InlineKeyboardMarkup:
+    buttons = []
+    for i, ex in enumerate(exercises):
+        row = []
+        if i > 0:
+            row.append(InlineKeyboardButton(text="▲", callback_data=f"ex_up_{i}"))
+        else:
+            row.append(InlineKeyboardButton(text="　", callback_data="ex_noop"))
+        if i < len(exercises) - 1:
+            row.append(InlineKeyboardButton(text="▼", callback_data=f"ex_down_{i}"))
+        else:
+            row.append(InlineKeyboardButton(text="　", callback_data="ex_noop"))
+        row.append(InlineKeyboardButton(text=f"🗑 {ex['name']}", callback_data=f"ex_del_{i}"))
+        buttons.append(row)
+    buttons.append([InlineKeyboardButton(text="➕ Ще вправу", callback_data="add_more_exercise")])
+    buttons.append([InlineKeyboardButton(text="💾 Зберегти тренування", callback_data="save_workout")])
+    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def exercises_text(exercises: list) -> str:
+    text = "<b>Вправи:</b>\n"
     for i, ex in enumerate(exercises, 1):
         text += f"{i}. {ex['name']} — {ex['sets']}×{ex['reps']}\n"
-
-    delete_buttons = []
-    for i, ex in enumerate(exercises):
-        delete_buttons.append([InlineKeyboardButton(text=f"🗑 {ex['name']}", callback_data=f"del_ex_{i}")])
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Ще вправу", callback_data="add_more_exercise")],
-        [InlineKeyboardButton(text="💾 Зберегти", callback_data="save_workout")],
-        *delete_buttons,
-        [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
-    ])
-    await callback.message.edit_text(text, reply_markup=kb)
+    return text
 
 
-@router.callback_query(F.data == "add_more_exercise")
-async def add_more_exercise(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(WorkoutStates.adding_exercise)
-    await callback.message.edit_text("💪 Введи назву наступної вправи:")
+# ── CONSTRUCTOR MENU ──────────────────────────────────────────────────────────
 
-
-@router.callback_query(F.data == "save_workout")
-async def save_workout_handler(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    await save_custom_workout(
-        callback.from_user.id,
-        data["workout_name"],
-        data["exercises"],
-    )
-    await state.clear()
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="▶️ Мої тренування", callback_data="constructor")],
-        [InlineKeyboardButton(text="🏠 Меню",            callback_data="main_menu")],
-    ])
-    await callback.message.edit_text(
-        f"✅ <b>Збережено!</b>\n\n📋 {data['workout_name']}\nВправ: {len(data['exercises'])}",
-        reply_markup=kb,
-    )
-
-
-@router.callback_query(F.data.startswith("start_workout_"))
-async def start_workout(callback: CallbackQuery, state: FSMContext):
-    index = int(callback.data.replace("start_workout_", ""))
+@router.callback_query(F.data == "constructor")
+async def constructor_menu(callback: CallbackQuery):
     workouts = await get_custom_workouts(callback.from_user.id)
-    if index >= len(workouts):
-        await callback.answer("Тренування не знайдено.", show_alert=True)
-        return
-    await state.update_data(
-        workout=workouts[index],
-        exercise_index=0,
-        set_index=0,
-        completed_sets={},
-        start_time=datetime.now().strftime("%H:%M"),
-    )
-    await state.set_state(WorkoutStates.in_progress)
-    await show_current_exercise(callback, state)
+    buttons = []
+    for i, w in enumerate(workouts):
+        buttons.append([
+            InlineKeyboardButton(text=f"▶️ {w['name']}", callback_data=f"start_workout_{i}"),
+        ])
+    if workouts:
+        buttons.append([InlineKeyboardButton(text="🗑 Видалити тренування", callback_data="delete_workout_menu")])
+    buttons.append([InlineKeyboardButton(text="➕ Створити тренування", callback_data="create_workout")])
+    buttons.append([InlineKeyboardButton(text="← Назад", callback_data="menu_workout")])
 
-
-async def show_current_exercise(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    workout = data["workout"]
-    ex_idx = data["exercise_index"]
-    set_idx = data["set_index"]
-    exercises = workout["exercises"]
-    if ex_idx >= len(exercises):
-        await finish_workout(callback, state)
-        return
-    exercise = exercises[ex_idx]
-    ex_name = exercise["name"]
-    total_sets = exercise["sets"]
-    target_reps = exercise["reps"]
-    last = await get_last_result(callback.from_user.id, ex_name)
-    last_text = ""
-    if last:
-        last_text = "\n\n<b>Минулого разу:</b>\n"
-        for i, r in enumerate(last, 1):
-            last_text += f"  Підхід {i}: {r['weight']}кг × {r['reps']}\n"
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="✅ Зробив", callback_data="set_done"),
-            InlineKeyboardButton(text="✏️ Ввести вагу", callback_data="enter_weight"),
-        ],
-        [InlineKeyboardButton(text="⏭️ Наступна вправа", callback_data="skip_exercise")],
-        [InlineKeyboardButton(text="🏁 Завершити тренування", callback_data="finish_early")],
-    ])
-    await callback.message.edit_text(
-        f"🏋️ <b>{ex_name}</b>\n"
-        f"Підхід {set_idx + 1}/{total_sets} · Ціль: {target_reps} повт"
-        f"{last_text}",
-        reply_markup=kb,
-    )
-
-
-@router.callback_query(WorkoutStates.in_progress, F.data == "set_done")
-async def set_done(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    workout = data["workout"]
-    ex_idx = data["exercise_index"]
-    set_idx = data["set_index"]
-    exercise = workout["exercises"][ex_idx]
-    ex_name = exercise["name"]
-    total_sets = exercise["sets"]
-    target_reps = exercise["reps"]
-    completed = data.get("completed_sets", {})
-    if ex_name not in completed:
-        completed[ex_name] = []
-    completed[ex_name].append({"weight": 0, "reps": target_reps})
-    await state.update_data(completed_sets=completed)
-    if set_idx + 1 >= total_sets:
-        await save_workout_result(callback.from_user.id, ex_name, completed[ex_name])
-        await state.update_data(exercise_index=ex_idx + 1, set_index=0)
+    text = "🛠 <b>Конструктор</b>\n\n"
+    if workouts:
+        text += "<b>Твої тренування:</b>\n\n"
+        for w in workouts:
+            ex_names = " · ".join([e["name"] for e in w["exercises"]])
+            text += f"📋 <b>{w['name']}</b>\n<i>{ex_names}</i>\n\n"
     else:
-        await state.update_data(set_index=set_idx + 1)
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="▶️ Наступний підхід", callback_data="next_after_rest")],
-    ])
+        text += "Ще немає тренувань.\nСтвори своє перше! 💪"
+
+    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+
+
+# ── DELETE ────────────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "delete_workout_menu")
+async def delete_workout_menu(callback: CallbackQuery):
+    workouts = await get_custom_workouts(callback.from_user.id)
+    buttons = []
+    for i, w in enumerate(workouts):
+        buttons.append([InlineKeyboardButton(text=f"🗑 {w['name']}", callback_data=f"delete_workout_{i}")])
+    buttons.append([InlineKeyboardButton(text="← Назад", callback_data="constructor")])
     await callback.message.edit_text(
-        "✅ Підхід зараховано!\n\n😮 Відпочинь 90 сек...",
-        reply_markup=kb,
+        "🗑 <b>Видалити тренування</b>\n\nВибери яке видалити:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
     )
-
-
-@router.callback_query(WorkoutStates.in_progress, F.data == "enter_weight")
-async def enter_weight_prompt(callback: CallbackQuery, state: FSMContext):
-    await state.set_state(WorkoutStates.entering_weight)
-    await callback.message.edit_text("✏️ Введи вагу в кг:\nНаприклад: <i>80</i>")
-
-
-@router.message(WorkoutStates.entering_weight)
-async def enter_weight(message: Message, state: FSMContext):
-    try:
-        weight = float(message.text.strip().replace(",", "."))
-        await state.update_data(current_weight=weight)
-        await state.set_state(WorkoutStates.entering_reps)
-        await message.answer(f"⚡ Вага: <b>{weight} кг</b>\n\nВведи кількість повторів:")
-    except ValueError:
-        await message.answer("❌ Введи число. Наприклад: <i>80</i>")
-
-
-@router.message(WorkoutStates.entering_reps)
-async def enter_reps(message: Message, state: FSMContext):
-    try:
-        reps = int(message.text.strip())
-        data = await state.get_data()
-        workout = data["workout"]
-        ex_idx = data["exercise_index"]
-        set_idx = data["set_index"]
-        exercise = workout["exercises"][ex_idx]
-        ex_name = exercise["name"]
-        total_sets = exercise["sets"]
-        weight = data["current_weight"]
-        completed = data.get("completed_sets", {})
-        if ex_name not in completed:
-            completed[ex_name] = []
-        completed[ex_name].append({"weight": weight, "reps": reps})
-        await state.update_data(completed_sets=completed)
-        await state.set_state(WorkoutStates.in_progress)
-        user = await get_user(message.from_user.id)
-        results = user.get("results", {}).get(ex_name, []) if user else []
-        is_record = not results or weight > max(r["weight"] for r in results)
-        record_text = "\n🏆 <b>НОВИЙ РЕКОРД!</b> 🔥" if is_record else ""
-        if set_idx + 1 >= total_sets:
-            await save_workout_result(message.from_user.id, ex_name, completed[ex_name])
-            await state.update_data(exercise_index=ex_idx + 1, set_index=0)
-        else:
-            await state.update_data(set_index=set_idx + 1)
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="▶️ Наступний підхід", callback_data="next_after_rest")],
-        ])
-        await message.answer(
-            f"✅ {weight}кг × {reps}{record_text}\n\n😮 Відпочинь 90 сек...",
-            reply_markup=kb,
-        )
-    except ValueError:
-        await message.answer("❌ Введи ціле число. Наприклад: <i>8</i>")
-
-
-@router.callback_query(F.data == "next_after_rest")
-async def next_after_rest(callback: CallbackQuery, state: FSMContext):
-    await show_current_exercise(callback, state)
-
-
-@router.callback_query(F.data == "skip_rest")
-async def skip_rest(callback: CallbackQuery, state: FSMContext):
-    await show_current_exercise(callback, state)
-
-
-@router.callback_query(WorkoutStates.in_progress, F.data == "skip_exercise")
-async def skip_exercise(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    await state.update_data(exercise_index=data["exercise_index"] + 1, set_index=0)
-    await show_current_exercise(callback, state)
-
-
-async def finish_workout(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    workout = data["workout"]
-    completed = data.get("completed_sets", {})
-    start_time = data.get("start_time", "—")
-    await state.clear()
-    text = f"🏁 <b>Тренування завершено!</b>\n\n📋 {workout['name']}\n⏱ {start_time}\n\n<b>Результати:</b>\n"
-    for ex_name, sets in completed.items():
-        text += f"\n💪 {ex_name}\n"
-        for i, s in enumerate(sets, 1):
-            if s["weight"] > 0:
-                text += f"  Підхід {i}: {s['weight']}кг × {s['reps']}\n"
-            else:
-                text += f"  Підхід {i}: ✅ {s['reps']} повт\n"
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Прогрес", callback_data="progress")],
-        [InlineKeyboardButton(text="🏠 Меню",    callback_data="main_menu")],
-    ])
-    await callback.message.edit_text(text, reply_markup=kb)
-
-
-@router.callback_query(F.data == "cancel_workout")
-async def cancel_workout(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback.message.edit_text(
-        "❌ Створення тренування скасовано.",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🛠 Конструктор", callback_data="constructor")],
-            [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
-        ])
-    )
-
-@router.callback_query(F.data == "finish_early")
-async def finish_early(callback: CallbackQuery, state: FSMContext):
-    await finish_workout(callback, state)
 
 
 @router.callback_query(F.data.startswith("delete_workout_"))
@@ -420,40 +215,605 @@ async def delete_workout(callback: CallbackQuery):
     await constructor_menu(callback)
 
 
-@router.callback_query(F.data.startswith("del_ex_"))
-async def delete_exercise(callback: CallbackQuery, state: FSMContext):
-    index = int(callback.data.replace("del_ex_", ""))
+# ── CREATE ────────────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "create_workout")
+async def create_workout(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(WorkoutStates.naming)
+    await state.update_data(exercises=[])
+    await callback.message.edit_text(
+        "➕ <b>Нове тренування</b>\n\n"
+        "Введи назву тренування:\n"
+        "<i>Наприклад: День A — Груди</i>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
+        ]),
+    )
+
+
+@router.message(WorkoutStates.naming)
+async def workout_set_name(message: Message, state: FSMContext):
+    await state.update_data(workout_name=message.text.strip())
+    await state.set_state(WorkoutStates.adding_exercise)
+    await message.answer(
+        "💪 Введи назву першої вправи:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
+        ]),
+    )
+
+
+@router.message(WorkoutStates.adding_exercise)
+async def workout_add_exercise(message: Message, state: FSMContext):
+    await state.update_data(current_exercise=message.text.strip())
+    await state.set_state(WorkoutStates.adding_sets)
+    data = await state.get_data()
+    await message.answer(
+        f"💪 <b>{data['current_exercise']}</b>\n\nКількість підходів:",
+        reply_markup=sets_kb(),
+    )
+
+
+@router.callback_query(WorkoutStates.adding_sets, F.data.startswith("sets_"))
+async def workout_set_sets(callback: CallbackQuery, state: FSMContext):
+    sets = int(callback.data.replace("sets_", ""))
+    await state.update_data(current_sets=sets)
+    data = await state.get_data()
+    await callback.message.edit_text(
+        f"💪 <b>{data['current_exercise']}</b>\n"
+        f"Підходів: {sets}\n\n"
+        f"Кількість повторів:",
+        reply_markup=reps_kb_create(),
+    )
+
+
+@router.callback_query(F.data.startswith("reps_create_"))
+async def workout_set_reps(callback: CallbackQuery, state: FSMContext):
+    reps = int(callback.data.replace("reps_create_", ""))
     data = await state.get_data()
     exercises = data.get("exercises", [])
-    if index < len(exercises):
-        deleted = exercises[index]["name"]
-        exercises.pop(index)
+    exercises.append({
+        "name": data["current_exercise"],
+        "sets": data["current_sets"],
+        "reps": reps,
+    })
+    await state.update_data(exercises=exercises)
+    await state.set_state(WorkoutStates.adding_exercise)
+
+    text = f"✅ Додано: <b>{data['current_exercise']}</b> — {data['current_sets']}×{reps}\n\n"
+    text += exercises_text(exercises)
+    text += "\n⬆️⬇️ — змінити порядок\n🗑 — видалити вправу"
+
+    await callback.message.edit_text(text, reply_markup=exercises_list_kb(exercises))
+
+
+@router.callback_query(F.data == "ex_noop")
+async def ex_noop(callback: CallbackQuery):
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("ex_up_"))
+async def ex_move_up(callback: CallbackQuery, state: FSMContext):
+    i = int(callback.data.replace("ex_up_", ""))
+    data = await state.get_data()
+    exercises = data.get("exercises", [])
+    if i > 0:
+        exercises[i], exercises[i-1] = exercises[i-1], exercises[i]
+        await state.update_data(exercises=exercises)
+    text = exercises_text(exercises)
+    text += "\n⬆️⬇️ — змінити порядок\n🗑 — видалити вправу"
+    await callback.message.edit_text(text, reply_markup=exercises_list_kb(exercises))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("ex_down_"))
+async def ex_move_down(callback: CallbackQuery, state: FSMContext):
+    i = int(callback.data.replace("ex_down_", ""))
+    data = await state.get_data()
+    exercises = data.get("exercises", [])
+    if i < len(exercises) - 1:
+        exercises[i], exercises[i+1] = exercises[i+1], exercises[i]
+        await state.update_data(exercises=exercises)
+    text = exercises_text(exercises)
+    text += "\n⬆️⬇️ — змінити порядок\n🗑 — видалити вправу"
+    await callback.message.edit_text(text, reply_markup=exercises_list_kb(exercises))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("ex_del_"))
+async def ex_delete(callback: CallbackQuery, state: FSMContext):
+    i = int(callback.data.replace("ex_del_", ""))
+    data = await state.get_data()
+    exercises = data.get("exercises", [])
+    if i < len(exercises):
+        deleted = exercises[i]["name"]
+        exercises.pop(i)
         await state.update_data(exercises=exercises)
         await callback.answer(f"🗑 '{deleted}' видалено!")
-
     if not exercises:
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
-        ])
         await callback.message.edit_text(
             "💪 Введи назву першої вправи:",
-            reply_markup=kb,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
+            ]),
         )
         await state.set_state(WorkoutStates.adding_exercise)
         return
+    text = exercises_text(exercises)
+    text += "\n⬆️⬇️ — змінити порядок\n🗑 — видалити вправу"
+    await callback.message.edit_text(text, reply_markup=exercises_list_kb(exercises))
 
-    text = "<b>Вправи:</b>\n"
+
+@router.callback_query(F.data == "add_more_exercise")
+async def add_more_exercise(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(WorkoutStates.adding_exercise)
+    await callback.message.edit_text(
+        "💪 Введи назву наступної вправи:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
+        ]),
+    )
+
+
+@router.callback_query(F.data == "save_workout")
+async def save_workout_handler(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    await save_custom_workout(
+        callback.from_user.id,
+        data["workout_name"],
+        data["exercises"],
+    )
+    await state.clear()
+    await callback.message.edit_text(
+        f"✅ <b>Збережено!</b>\n\n📋 {data['workout_name']}\nВправ: {len(data['exercises'])}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="▶️ Мої тренування", callback_data="constructor")],
+            [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
+        ]),
+    )
+
+
+@router.callback_query(F.data == "cancel_workout")
+async def cancel_workout(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text(
+        "❌ Скасовано.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🛠 Конструктор", callback_data="constructor")],
+            [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
+        ]),
+    )
+
+
+# ── START WORKOUT ─────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("start_workout_"))
+async def start_workout(callback: CallbackQuery, state: FSMContext):
+    index = int(callback.data.replace("start_workout_", ""))
+    workouts = await get_custom_workouts(callback.from_user.id)
+    if index >= len(workouts):
+        await callback.answer("Тренування не знайдено.", show_alert=True)
+        return
+    await state.update_data(
+        workout=workouts[index],
+        workout_index=index,
+        exercise_index=0,
+        set_index=0,
+        completed_sets={},
+        current_weight=0.0,
+        start_time=datetime.now().strftime("%H:%M"),
+    )
+    await state.set_state(WorkoutStates.in_progress)
+    await show_current_exercise(callback, state)
+
+
+async def show_current_exercise(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    workout = data["workout"]
+    ex_idx = data["exercise_index"]
+    set_idx = data["set_index"]
+    exercises = workout["exercises"]
+
+    if ex_idx >= len(exercises):
+        await finish_workout(callback, state)
+        return
+
+    exercise = exercises[ex_idx]
+    ex_name = exercise["name"]
+    total_sets = exercise["sets"]
+    target_reps = exercise["reps"]
+    weight = data.get("current_weight", 0.0)
+
+    last = await get_last_result(callback.from_user.id, ex_name)
+    last_text = ""
+    if last:
+        last_text = "\n⏮ <i>Минулого разу: "
+        last_text += " · ".join([f"{r['weight']}кг×{r['reps']}" for r in last])
+        last_text += "</i>"
+
+    dots = make_dots(total_sets, set_idx)
+    weight_display = f"{weight} кг" if weight > 0 else "не вказана"
+
+    await callback.message.edit_text(
+        f"🏋️ <b>{ex_name}</b>\n"
+        f"<i>{workout['name']} · Вправа {ex_idx+1}/{len(exercises)}</i>\n\n"
+        f"Підхід <b>{set_idx+1}</b>/{total_sets} · Ціль: {target_reps} повт\n"
+        f"{dots}\n\n"
+        f"⚖️ Вага: <b>{weight_display}</b>\n"
+        f"<i>Напиши вагу в чат щоб змінити</i>"
+        f"{last_text}",
+        reply_markup=reps_kb_workout(),
+    )
+
+
+# ── WEIGHT INPUT ──────────────────────────────────────────────────────────────
+
+@router.message(WorkoutStates.in_progress)
+async def weight_input(message: Message, state: FSMContext):
+    try:
+        weight = float(message.text.strip().replace(",", "."))
+        if weight < 0:
+            raise ValueError
+        await state.update_data(current_weight=weight)
+        data = await state.get_data()
+        workout = data["workout"]
+        ex_idx = data["exercise_index"]
+        set_idx = data["set_index"]
+        exercise = workout["exercises"][ex_idx]
+        ex_name = exercise["name"]
+        total_sets = exercise["sets"]
+        target_reps = exercise["reps"]
+
+        last = await get_last_result(message.from_user.id, ex_name)
+        last_text = ""
+        if last:
+            last_text = "\n⏮ <i>Минулого разу: "
+            last_text += " · ".join([f"{r['weight']}кг×{r['reps']}" for r in last])
+            last_text += "</i>"
+
+        dots = make_dots(total_sets, set_idx)
+
+        await message.answer(
+            f"🏋️ <b>{ex_name}</b>\n"
+            f"<i>{workout['name']} · Вправа {ex_idx+1}/{len(workout['exercises'])}</i>\n\n"
+            f"Підхід <b>{set_idx+1}</b>/{total_sets} · Ціль: {target_reps} повт\n"
+            f"{dots}\n\n"
+            f"⚖️ Вага: <b>{weight} кг</b> ✅\n"
+            f"<i>Напиши вагу в чат щоб змінити</i>"
+            f"{last_text}",
+            reply_markup=reps_kb_workout(),
+        )
+    except ValueError:
+        await message.answer("❌ Введи число. Наприклад: <i>60</i> або <i>57.5</i>")
+
+
+# ── REPS DONE ─────────────────────────────────────────────────────────────────
+
+@router.callback_query(WorkoutStates.in_progress, F.data.startswith("reps_"))
+async def reps_done(callback: CallbackQuery, state: FSMContext):
+    reps = int(callback.data.replace("reps_", ""))
+    data = await state.get_data()
+    workout = data["workout"]
+    ex_idx = data["exercise_index"]
+    set_idx = data["set_index"]
+    exercise = workout["exercises"][ex_idx]
+    ex_name = exercise["name"]
+    total_sets = exercise["sets"]
+    weight = data.get("current_weight", 0.0)
+
+    completed = data.get("completed_sets", {})
+    if ex_name not in completed:
+        completed[ex_name] = []
+    completed[ex_name].append({"weight": weight, "reps": reps})
+
+    # Перевірка рекорду
+    user = await get_user(callback.from_user.id)
+    results = user.get("results", {}).get(ex_name, []) if user else []
+    is_record = weight > 0 and (not results or weight > max((r["weight"] for r in results), default=0))
+    record_text = "\n🏆 <b>Новий рекорд!</b> 🔥" if is_record else ""
+
+    if set_idx + 1 >= total_sets:
+        await save_workout_result(callback.from_user.id, ex_name, completed[ex_name])
+        await state.update_data(
+            completed_sets=completed,
+            exercise_index=ex_idx + 1,
+            set_index=0,
+            current_weight=weight,
+        )
+        dots = "🟢" * total_sets
+        await callback.message.edit_text(
+            f"✅ <b>{ex_name}</b> — виконано!\n"
+            f"{dots}\n"
+            f"{weight}кг × {reps}{record_text}\n\n"
+            f"😮 Відпочинь 90 сек...",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="▶️ Наступна вправа", callback_data="next_exercise")],
+                [InlineKeyboardButton(text="🏁 Завершити тренування", callback_data="finish_early")],
+            ]),
+        )
+    else:
+        await state.update_data(
+            completed_sets=completed,
+            set_index=set_idx + 1,
+            current_weight=weight,
+        )
+        dots = make_dots(total_sets, set_idx + 1)
+        await callback.message.edit_text(
+            f"✅ Підхід {set_idx+1}/{total_sets}\n"
+            f"{dots}\n"
+            f"{weight}кг × {reps}{record_text}\n\n"
+            f"😮 Відпочинь 90 сек...",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="▶️ Наступний підхід", callback_data="next_after_rest")],
+                [InlineKeyboardButton(text="🏁 Завершити", callback_data="finish_early")],
+            ]),
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "next_after_rest")
+async def next_after_rest(callback: CallbackQuery, state: FSMContext):
+    await show_current_exercise(callback, state)
+
+
+@router.callback_query(F.data == "next_exercise")
+async def next_exercise(callback: CallbackQuery, state: FSMContext):
+    await show_current_exercise(callback, state)
+
+
+@router.callback_query(WorkoutStates.in_progress, F.data == "skip_exercise")
+async def skip_exercise(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    await state.update_data(exercise_index=data["exercise_index"] + 1, set_index=0, current_weight=0.0)
+    await show_current_exercise(callback, state)
+
+
+# ── REPLACE EXERCISE ──────────────────────────────────────────────────────────
+
+@router.callback_query(WorkoutStates.in_progress, F.data == "replace_exercise")
+async def replace_exercise(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    workout = data["workout"]
+    ex_idx = data["exercise_index"]
+    current_ex = workout["exercises"][ex_idx]["name"]
+    await state.set_state(WorkoutStates.replacing_ex)
+    await callback.message.edit_text(
+        f"🔄 <b>Замінити вправу</b>\n\n"
+        f"Зараз: <b>{current_ex}</b>\n\n"
+        f"Введи назву нової вправи:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_replace")],
+        ]),
+    )
+
+
+@router.callback_query(F.data == "cancel_replace")
+async def cancel_replace(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(WorkoutStates.in_progress)
+    await show_current_exercise(callback, state)
+
+
+@router.message(WorkoutStates.replacing_ex)
+async def do_replace_exercise(message: Message, state: FSMContext):
+    new_name = message.text.strip()
+    data = await state.get_data()
+    workout = data["workout"]
+    ex_idx = data["exercise_index"]
+    old_name = workout["exercises"][ex_idx]["name"]
+    workout["exercises"][ex_idx]["name"] = new_name
+    await state.update_data(workout=workout, current_weight=0.0)
+    await state.set_state(WorkoutStates.in_progress)
+    await message.answer(f"✅ <b>{old_name}</b> замінено на <b>{new_name}</b>")
+
+    class FakeCallback:
+        def __init__(self, msg): self.message = msg; self.from_user = msg.from_user
+        async def answer(self): pass
+
+    await show_current_exercise(FakeCallback(message), state)
+
+
+# ── FINISH ────────────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "finish_early")
+async def finish_early(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(WorkoutStates.in_progress)
+    await finish_workout(callback, state)
+
+
+async def finish_workout(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    workout = data["workout"]
+    completed = data.get("completed_sets", {})
+    start_time = data.get("start_time", "—")
+
+    await save_last_workout(callback.from_user.id, workout["name"], completed)
+    await state.clear()
+
+    total_sets = sum(len(s) for s in completed.values())
+    total_volume = sum(
+        s["weight"] * s["reps"]
+        for sets in completed.values()
+        for s in sets
+    )
+
+    text = "🏁 <b>Тренування завершено!</b>\n\n"
+    text += f"📋 {workout['name']}\n"
+    text += f"⏱ Початок: {start_time}\n\n"
+    text += f"💪 Підходів: <b>{total_sets}</b>\n"
+    if total_volume > 0:
+        text += f"⚖️ Об'єм: <b>{int(total_volume)} кг</b>\n\n"
+
+    if completed:
+        text += "<b>Результати:</b>\n"
+        for ex_name, sets in completed.items():
+            text += f"\n🏋️ {ex_name}\n"
+            for i, s in enumerate(sets, 1):
+                if s["weight"] > 0:
+                    text += f"  {i}. {s['weight']}кг × {s['reps']}\n"
+                else:
+                    text += f"  {i}. ✅ {s['reps']} повт\n"
+    else:
+        text += "Підходів не записано."
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔄 Повторити", callback_data="repeat_last_workout")],
+            [InlineKeyboardButton(text="🛠 До конструктора", callback_data="constructor")],
+            [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
+        ]),
+    )
+
+
+# ── REPEAT LAST ───────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "repeat_last_workout")
+async def repeat_last_workout(callback: CallbackQuery, state: FSMContext):
+    from database import get_last_workout
+    last = await get_last_workout(callback.from_user.id)
+    if not last:
+        await callback.answer("❌ Ще немає завершених тренувань!", show_alert=True)
+        return
+
+    text = f"🔄 <b>Останнє тренування</b>\n📅 {last['date']}\n📋 {last['name']}\n\n<b>Результати:</b>\n"
+    for ex_name, sets in last["completed_sets"].items():
+        text += f"\n💪 {ex_name}\n"
+        for i, s in enumerate(sets, 1):
+            if s["weight"] > 0:
+                text += f"  {i}. {s['weight']}кг × {s['reps']}\n"
+            else:
+                text += f"  {i}. ✅ {s['reps']} повт\n"
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="← Назад", callback_data="menu_workout")],
+        ]),
+    )
+
+
+# ── IMPORT PROGRAM ────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data == "import_program")
+async def import_program(callback: CallbackQuery, state: FSMContext):
+    text = callback.message.text or ""
+    lines = text.split("\n")
+
+    # Знаходимо дні
+    days = []
+    for line in lines:
+        if "День" in line and ("📌" in line or "—" in line):
+            # Чистимо від html тегів і зайвих символів
+            clean = line.replace("<b>", "").replace("</b>", "")
+            clean = clean.replace("📌", "").replace("━", "").strip()
+            if clean:
+                days.append(clean)
+
+    if not days:
+        await callback.answer("❌ Не вдалося знайти дні в програмі", show_alert=True)
+        return
+
+    await state.update_data(program_text=text, program_days=days)
+
+    buttons = []
+    for i, day in enumerate(days):
+        buttons.append([InlineKeyboardButton(text=f"📋 {day}", callback_data=f"import_day_{i}")])
+    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_import")])
+
+    await callback.message.edit_text(
+        "📥 <b>Зберегти в конструктор</b>\n\nВибери який день імпортувати:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+
+
+@router.callback_query(F.data == "cancel_import")
+async def cancel_import(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer("Скасовано")
+    await callback.message.edit_text(
+        "❌ Імпорт скасовано.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📋 Програми", callback_data="programs")],
+            [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
+        ]),
+    )
+
+
+@router.callback_query(F.data.startswith("import_day_"))
+async def import_day(callback: CallbackQuery, state: FSMContext):
+    day_idx = int(callback.data.replace("import_day_", ""))
+    data = await state.get_data()
+    program_text = data.get("program_text", "")
+    days = data.get("program_days", [])
+
+    if day_idx >= len(days):
+        await callback.answer("❌ Помилка", show_alert=True)
+        return
+
+    day_name = days[day_idx]
+    lines = program_text.split("\n")
+
+    # Знаходимо вправи цього дня
+    exercises = []
+    in_day = False
+    for line in lines:
+        clean_line = line.replace("<b>", "").replace("</b>", "").strip()
+
+        # Перевіряємо чи це наш день
+        if "День" in clean_line and day_name.replace("📌", "").strip() in clean_line:
+            in_day = True
+            continue
+
+        # Якщо зустріли наступний день — зупиняємось
+        if in_day and "День" in clean_line and "📌" in line:
+            break
+
+        # Парсимо вправи
+        if in_day and clean_line.startswith("•"):
+            ex_line = clean_line.replace("•", "").strip()
+            # Парсимо підходи×повтори
+            sets, reps = 3, 10  # дефолт
+            if "×" in ex_line or "x" in ex_line.lower():
+                ex_line = ex_line.replace("x", "×").replace("X", "×")
+                parts = ex_line.split("—")
+                if len(parts) >= 2:
+                    ex_name = parts[0].strip()
+                    sr = parts[-1].strip()
+                    if "×" in sr:
+                        sr_parts = sr.split("×")
+                        try:
+                            sets = int(sr_parts[0].strip())
+                            reps = int(sr_parts[1].strip().split()[0])
+                        except (ValueError, IndexError):
+                            pass
+                else:
+                    ex_name = ex_line.split("—")[0].strip() if "—" in ex_line else ex_line
+            else:
+                ex_name = ex_line.split("—")[0].strip() if "—" in ex_line else ex_line
+
+            # Чистимо суперсет
+            if "Суперсет:" in ex_name:
+                ex_name = ex_name.replace("Суперсет:", "").strip()
+
+            if ex_name:
+                exercises.append({"name": ex_name, "sets": sets, "reps": reps})
+
+    if not exercises:
+        await callback.answer("❌ Не вдалося знайти вправи", show_alert=True)
+        return
+
+    # Зберігаємо як тренування в конструкторі
+    await save_custom_workout(callback.from_user.id, day_name.strip(), exercises)
+    await state.clear()
+
+    text = f"✅ <b>Збережено в конструктор!</b>\n\n📋 {day_name.strip()}\n\n<b>Вправи:</b>\n"
     for i, ex in enumerate(exercises, 1):
         text += f"{i}. {ex['name']} — {ex['sets']}×{ex['reps']}\n"
 
-    delete_buttons = []
-    for i, ex in enumerate(exercises):
-        delete_buttons.append([InlineKeyboardButton(text=f"🗑 {ex['name']}", callback_data=f"del_ex_{i}")])
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Ще вправу", callback_data="add_more_exercise")],
-        [InlineKeyboardButton(text="💾 Зберегти", callback_data="save_workout")],
-        *delete_buttons,
-        [InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_workout")],
-    ])
-    await callback.message.edit_text(text, reply_markup=kb)
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="▶️ Запустити тренування", callback_data="constructor")],
+            [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
+        ]),
+    )

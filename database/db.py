@@ -96,3 +96,22 @@ async def get_channel_link() -> str:
     from database.mongo import db
     doc = await db["settings"].find_one({"_id": "settings"})
     return doc.get("channel_link", None) if doc else None
+
+
+async def save_last_workout(user_id: int, workout_name: str, completed_sets: dict) -> None:
+    await users_col.update_one(
+        {"_id": user_id},
+        {"$set": {"last_workout": {
+            "name": workout_name,
+            "completed_sets": completed_sets,
+            "date": datetime.now().strftime("%d.%m.%Y %H:%M"),
+        }}},
+        upsert=True
+    )
+
+
+async def get_last_workout(user_id: int) -> Optional[dict]:
+    user = await get_user(user_id)
+    if not user:
+        return None
+    return user.get("last_workout")

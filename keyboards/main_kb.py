@@ -4,11 +4,9 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 def main_menu_kb(subscription: str = "free", channel_link: str = None) -> InlineKeyboardMarkup:
     buttons = []
 
-    buttons.append(
-        [InlineKeyboardButton(text="📱 Відкрити додаток (в розробці)", url="https://nazar-naz-ctl.github.io/gymnote-miniapp")])
     buttons.append([InlineKeyboardButton(text="💪 Тренування", callback_data="menu_workout")])
 
-    if subscription in ("standard", "premium"):
+    if subscription in ("premium"):
         buttons.append([InlineKeyboardButton(text="📊 Мій прогрес", callback_data="progress")])
 
     buttons.append([InlineKeyboardButton(text="💡 Поради", callback_data="tips")])

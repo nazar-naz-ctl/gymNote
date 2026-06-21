@@ -25,7 +25,6 @@ LOCATION_LABELS = {
 }
 SUB_LABELS = {
     "free": "🆓 Безкоштовний",
-    "standard": "⭐ Стандарт",
     "premium": "👑 Преміум",
 }
 
@@ -46,16 +45,16 @@ async def show_profile(callback: CallbackQuery):
     trial_end = user.get("trial_end")
     sub_end = user.get("subscription_end")
 
-    if sub == "premium" and trial_end:
+    if sub == "premium" and (trial_end or sub_end):
         try:
-            days_left = (datetime.strptime(trial_end, "%Y-%m-%d") - datetime.now()).days
+            days_left = (datetime.strptime(trial_end or sub_end, "%Y-%m-%d") - datetime.now()).days
             if days_left > 0:
                 days_left_line = f"\n⏳ Пробний період: ще <b>{days_left} дн.</b>"
             else:
                 days_left_line = "\n⏳ Пробний період закінчився"
         except ValueError:
             pass
-    elif sub in ("premium", "standard") and sub_end:
+    elif sub in ("premium") and sub_end:
         try:
             days_left = (datetime.strptime(sub_end, "%Y-%m-%d") - datetime.now()).days
             if days_left > 0:

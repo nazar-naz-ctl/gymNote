@@ -6,6 +6,7 @@ router = Router()
 
 def back_and_menu(back: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📥 Зберегти день в конструктор", callback_data="import_program")],
         [InlineKeyboardButton(text="← Назад", callback_data=back)],
         [InlineKeyboardButton(text="🏠 Меню",  callback_data="main_menu")],
     ])

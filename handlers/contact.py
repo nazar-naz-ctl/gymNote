@@ -50,7 +50,6 @@ async def contact_trainer(callback: CallbackQuery):
     await callback.message.edit_text(
         "📞 <b>Зв'язок з тренером</b>\n\n"
         "👑 Преміум — відповідь першою\n"
-        "⭐ Стандарт — відповідь другою\n"
         "🆓 Безкоштовний — при можливості",
         reply_markup=kb,
     )
@@ -78,7 +77,6 @@ async def receive_question(message: Message, state: FSMContext):
     await state.clear()
     sub_text = {
         "premium":  "👑 Преміум",
-        "standard": "⭐ Стандарт",
         "free":     "🆓 Безкоштовний",
     }.get(sub, "🆓")
     kb = InlineKeyboardMarkup(inline_keyboard=[
