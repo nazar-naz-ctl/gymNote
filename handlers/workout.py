@@ -627,6 +627,16 @@ async def finish_workout(callback: CallbackQuery, state: FSMContext):
     start_time = data.get("start_time", "—")
 
     await save_last_workout(callback.from_user.id, workout["name"], completed)
+    # Оновлюємо серію
+    from database import update_streak
+    streak = await update_streak(callback.from_user.id)
+    streak_text = f"\n\n🔥 <b>Серія: {streak['current']} день!</b>"
+    if streak['current'] >= 7:
+        streak_text += "\nТиждень без пропусків! 💪"
+    elif streak['current'] >= 30:
+        streak_text += "\nМісяць без пропусків! 🏆"
+    if streak['best'] > 1:
+        streak_text += f"\n🏆 Рекорд: {streak['best']} днів"
     await state.clear()
 
     total_sets = sum(len(s) for s in completed.values())
@@ -654,6 +664,8 @@ async def finish_workout(callback: CallbackQuery, state: FSMContext):
                     text += f"  {i}. ✅ {s['reps']} повт\n"
     else:
         text += "Підходів не записано."
+
+    text += streak_text
 
     await callback.message.edit_text(
         text,

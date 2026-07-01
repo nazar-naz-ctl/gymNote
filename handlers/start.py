@@ -59,8 +59,12 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
             except ValueError:
                 pass
 
+        from database import get_streak
+        streak = await get_streak(user_id)
+        streak_line = f"\n🔥 Серія: {streak['current']} днів" if streak['current'] > 0 else ""
+
         await message.answer(
-            f"👋 З поверненням, {name}!\n\nОбирай:",
+            f"👋 З поверненням, {name}!{streak_line}\n\nОбирай:",
             reply_markup=main_menu_kb(user.get("subscription", "free"), channel_link=await get_channel_link()),
         )
         return
