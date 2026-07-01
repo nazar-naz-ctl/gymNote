@@ -10,6 +10,7 @@ from .workout import router as workout_router
 from .contact import router as contact_router
 from .tips import router as tips_router
 from .support import router as support_router
+from .generator import router as generator_router
 
 main_router = Router()
 main_router.include_router(start_router)
@@ -23,3 +24,4 @@ main_router.include_router(workout_router)
 main_router.include_router(contact_router)
 main_router.include_router(tips_router)
 main_router.include_router(support_router)
+main_router.include_router(generator_router)

@@ -92,6 +92,7 @@ async def menu_workout(callback: CallbackQuery):
 
     buttons = [
         [InlineKeyboardButton(text="📋 Програми тренувань", callback_data="programs")],
+        [InlineKeyboardButton(text="🤖 Генератор програм", callback_data="open_generator")],
         [InlineKeyboardButton(text="🔄 Повторити останнє", callback_data="repeat_last_workout")],
     ]
     if sub in ("standard", "premium"):
