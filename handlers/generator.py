@@ -361,28 +361,43 @@ def generate_program(equipment: list, goal: str, level: int, days: int) -> dict:
         target_muscles = muscle_data["muscles"]
         ex_count = EXERCISES_PER_DAY.get(days, 5)
 
-        # Знаходимо вправи
         day_exercises = []
+
         for muscle in target_muscles:
-            found = get_exercises(
-                equipment=equipment,
-                muscles=[muscle],
-                level=level,
-                goal=goal,
-                ex_type="сила",
-            )
-            # Якщо не знайшли для рівня — шукаємо без рівня
+            # Спочатку шукаємо з рівнем і ціллю
+            found = get_exercises(equipment=equipment, muscles=[muscle], level=level, goal=goal, ex_type="сила")
+
+            # Якщо не знайшли — без рівня
             if not found:
-                found = get_exercises(
-                    equipment=equipment,
-                    muscles=[muscle],
-                    goal=goal,
-                    ex_type="сила",
-                )
+                found = get_exercises(equipment=equipment, muscles=[muscle], goal=goal, ex_type="сила")
+
+            # Якщо не знайшли — без цілі
+            if not found:
+                found = get_exercises(equipment=equipment, muscles=[muscle], level=level)
+
+            # Якщо не знайшли — тільки по обладнанню
+            if not found:
+                found = get_exercises(equipment=equipment, muscles=[muscle])
+
             if found:
-                # Беремо 1-2 вправи на м'яз
                 picks = random.sample(found, min(2, len(found)))
                 day_exercises.extend(picks)
+
+        # Якщо взагалі нічого не знайшли — шукаємо будь-що з цим обладнанням
+        if not day_exercises:
+            found = get_exercises(equipment=equipment, goal=goal, ex_type="сила")
+            if not found:
+                found = get_exercises(equipment=equipment)
+            if found:
+                day_exercises = random.sample(found, min(ex_count, len(found)))
+
+        # Також додаємо кардіо для схуднення і витривалості
+        if goal in ("схуднення", "витривалість"):
+            cardio = get_exercises(equipment=equipment, ex_type="кардіо")
+            if not cardio:
+                cardio = get_exercises(ex_type="кардіо")
+            if cardio:
+                day_exercises.extend(random.sample(cardio, min(2, len(cardio))))
 
         # Прибираємо дублі
         seen = set()
@@ -392,13 +407,11 @@ def generate_program(equipment: list, goal: str, level: int, days: int) -> dict:
                 seen.add(ex["name"])
                 unique.append(ex)
 
-        # Обмежуємо кількість
         final = unique[:ex_count]
 
         if not final:
             continue
 
-        # Додаємо підходи і повтори залежно від цілі
         sets_reps = {
             "маса": (4, 8),
             "сила": (5, 5),
