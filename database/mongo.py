@@ -12,6 +12,7 @@ db = client["gymnote"]
 users_col = db["users"]
 workouts_col = db["workouts"]
 programs_col = db["programs"]
+saved_tracks_col = db["saved_tracks"]
 
 
 async def get_user(user_id: int) -> dict | None:

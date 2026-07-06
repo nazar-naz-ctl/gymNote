@@ -10,6 +10,7 @@ def main_menu_kb(subscription: str = "free", channel_link: str = None) -> Inline
         buttons.append([InlineKeyboardButton(text="📊 Мій прогрес", callback_data="progress")])
 
     buttons.append([InlineKeyboardButton(text="💡 Поради", callback_data="tips")])
+    buttons.append([InlineKeyboardButton(text="🎵 Музика", callback_data="music_menu")])
 
     if subscription == "premium":
         buttons.append([InlineKeyboardButton(text="📬 Від тренера", callback_data="menu_trainer_contact")])

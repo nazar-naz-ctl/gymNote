@@ -1,5 +1,5 @@
 from typing import Optional
-from database.mongo import users_col
+from database.mongo import users_col, saved_tracks_col
 from datetime import datetime
 
 
@@ -115,3 +115,45 @@ async def get_last_workout(user_id: int) -> Optional[dict]:
     if not user:
         return None
     return user.get("last_workout")
+
+
+from bson import ObjectId
+from datetime import datetime
+
+async def add_saved_track(user_id: int, title: str, performer: str, file_id: str) -> str:
+    """Зберігає трек користувача. Повертає id збереженого запису."""
+    doc = {
+        "user_id": user_id,
+        "title": title or "Невідомий трек",
+        "performer": performer or "Невідомий виконавець",
+        "file_id": file_id,
+        "saved_at": datetime.utcnow(),
+    }
+    result = await saved_tracks_col.insert_one(doc)
+    return str(result.inserted_id)
+
+
+async def get_saved_tracks(user_id: int) -> list[dict]:
+    """Список збережених треків, найновіші перші."""
+    cursor = saved_tracks_col.find({"user_id": user_id}).sort("saved_at", -1)
+    tracks = await cursor.to_list(length=100)
+    for t in tracks:
+        t["_id"] = str(t["_id"])
+    return tracks
+
+
+async def get_saved_track(user_id: int, track_id: str) -> dict | None:
+    track = await saved_tracks_col.find_one({"_id": ObjectId(track_id), "user_id": user_id})
+    if track:
+        track["_id"] = str(track["_id"])
+    return track
+
+
+async def delete_saved_track(user_id: int, track_id: str) -> bool:
+    result = await saved_tracks_col.delete_one({"_id": ObjectId(track_id), "user_id": user_id})
+    return result.deleted_count > 0
+
+
+async def is_track_saved(user_id: int, file_id: str) -> bool:
+    track = await saved_tracks_col.find_one({"user_id": user_id, "file_id": file_id})
+    return track is not None

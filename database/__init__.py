@@ -16,6 +16,12 @@ from .db import (
     get_channel_link,
 save_last_workout,
     get_last_workout,
+get_last_workout,
+    add_saved_track,
+    get_saved_tracks,
+    get_saved_track,
+    delete_saved_track,
+    is_track_saved,
 )
 
 all = [
@@ -31,6 +37,12 @@ all = [
     "get_giveaway_number",
     "start_new_giveaway",
     "get_channel_link",
+"get_channel_link",
+    "add_saved_track",
+    "get_saved_tracks",
+    "get_saved_track",
+    "delete_saved_track",
+    "is_track_saved",
 ]
 
 
