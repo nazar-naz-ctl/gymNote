@@ -93,7 +93,7 @@ def _run_download(video_id: str, out_template: str) -> dict:
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
-        "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+        "extractor_args": {"youtube": {"player_client": ["web"]}},
         "cookiefile": "cookies.txt",
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
