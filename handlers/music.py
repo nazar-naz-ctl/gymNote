@@ -28,7 +28,7 @@ music_router = Router()
 TEMP_DIR = "temp_music"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-SEARCH_LIMIT = 100
+SEARCH_LIMIT = 40
 
 
 class MusicStates(StatesGroup):
@@ -47,17 +47,16 @@ def _format_duration(seconds) -> str:
     return f"{m}:{s:02d}"
 
 
-def _run_search(search_prefix: str, query: str, limit: int) -> list:
+def _run_search(query: str, limit: int) -> list:
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
         "extract_flat": "in_playlist",
         "noplaylist": True,
         "ignoreerrors": True,
-        "cookiefile": "/root/gymNote/cookies.txt",
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(f"{search_prefix}{limit}:{query}", download=False)
+        info = ydl.extract_info(f"scsearch{limit}:{query}", download=False)
         if not info:
             return []
         return info.get("entries") or []
@@ -67,7 +66,7 @@ async def search_tracks(query: str, limit: int = SEARCH_LIMIT) -> list[dict]:
     loop = asyncio.get_event_loop()
 
     try:
-        entries = await loop.run_in_executor(None, _run_search, "ytsearch", query, limit)
+        entries = await loop.run_in_executor(None, _run_search, query, limit)
     except Exception as e:
         print(f"[music] search failed: {e!r}")
         return []
@@ -76,36 +75,36 @@ async def search_tracks(query: str, limit: int = SEARCH_LIMIT) -> list[dict]:
     for e in entries:
         if not e:
             continue
+        url = e.get("url") or e.get("webpage_url")
+        if not url:
+            continue
         results.append({
-            "video_id": e.get("id"),
+            "url": url,
             "title": (e.get("title") or "Невідомий трек")[:80],
-            "uploader": (e.get("uploader") or e.get("channel") or e.get("artist") or "Невідомий виконавець")[:60],
+            "uploader": (e.get("uploader") or "Невідомий виконавець")[:60],
             "duration_str": _format_duration(e.get("duration")),
         })
     return results
 
 
-def _run_download(video_id: str, out_template: str) -> dict:
-    url = f"https://music.youtube.com/watch?v={video_id}"
+def _run_download(track_url: str, out_template: str) -> dict:
     ydl_opts = {
-        "format": "bestaudio[ext=m4a]/bestaudio/best",
+        "format": "bestaudio/best",
         "outtmpl": out_template,
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
-        "extractor_args": {"youtube": {"player_client": ["web"]}},
-        "cookiefile": "/root/gymNote/cookies.txt",
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        return ydl.extract_info(url, download=True)
+        return ydl.extract_info(track_url, download=True)
 
 
-async def download_track_by_id(video_id: str) -> tuple[str, str, str]:
+async def download_track_by_url(track_url: str) -> tuple[str, str, str]:
     file_id = uuid.uuid4().hex
     out_template = os.path.join(TEMP_DIR, f"{file_id}.%(ext)s")
 
     loop = asyncio.get_event_loop()
-    info = await loop.run_in_executor(None, _run_download, video_id, out_template)
+    info = await loop.run_in_executor(None, _run_download, track_url, out_template)
     if not info:
         raise TrackNotFoundError()
 
@@ -194,8 +193,8 @@ async def music_pick(callback: CallbackQuery, state: FSMContext):
 
     file_path = None
     try:
-        file_path, title, performer = await download_track_by_id(chosen["video_id"])
-        audio = FSInputFile(file_path, filename=f"{title}.m4a")
+        file_path, title, performer = await download_track_by_url(chosen["url"])
+        audio = FSInputFile(file_path, filename=f"{title}.mp3")
 
         sent = await callback.message.answer_audio(audio=audio, title=title, performer=performer)
 
