@@ -28,7 +28,7 @@ music_router = Router()
 TEMP_DIR = "temp_music"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-SEARCH_LIMIT = 40
+SEARCH_LIMIT = 100
 
 
 class MusicStates(StatesGroup):
