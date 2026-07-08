@@ -54,7 +54,7 @@ def _run_search(search_prefix: str, query: str, limit: int) -> list:
         "extract_flat": "in_playlist",
         "noplaylist": True,
         "ignoreerrors": True,
-        "cookiefile": "cookies.txt",
+        "cookiefile": "/root/gymNote/cookies.txt",
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(f"{search_prefix}{limit}:{query}", download=False)
@@ -94,7 +94,7 @@ def _run_download(video_id: str, out_template: str) -> dict:
         "quiet": True,
         "no_warnings": True,
         "extractor_args": {"youtube": {"player_client": ["web"]}},
-        "cookiefile": "cookies.txt",
+        "cookiefile": "/root/gymNote/cookies.txt",
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         return ydl.extract_info(url, download=True)
