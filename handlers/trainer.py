@@ -490,8 +490,9 @@ async def trainer_broadcast_select(callback: CallbackQuery, state: FSMContext):
     "free":     "тільки Безкоштовним",
 }
     await callback.message.edit_text(
-        f"📣 <b>Розсилка — {target_labels.get(target)}</b>\n\nВведи повідомлення:",
-)
+        f"📣 <b>Розсилка — {target_labels.get(target)}</b>\n\n"
+        f"Введи повідомлення або надішли фото з підписом:",
+    )
 
 
 @router.message(TrainerStates.typing_broadcast)
@@ -501,17 +502,27 @@ async def trainer_broadcast_send(message: Message, state: FSMContext):
     data = await state.get_data()
     target = data.get("broadcast_target", "all")
     clients = await get_clients()
-    text = message.text.strip()
     await state.clear()
 
     filtered = clients if target == "all" else [c for c in clients if c["subscription"] == target]
+
+    photo_id = message.photo[-1].file_id if message.photo else None
+    body = message.caption or message.text or ""
+    text = f"📣 <b>Від тренера:</b>\n\n{body}" if body else "📣 <b>Від тренера:</b>"
+
+    if not photo_id and not body:
+        await message.answer("Напиши текст або надішли фото 🙂")
+        return
 
     sent = 0
     try:
         from bot import bot
         for c in filtered:
             try:
-                await bot.send_message(c["id"], f"📣 <b>Від тренера:</b>\n\n{text}")
+                if photo_id:
+                    await bot.send_photo(c["id"], photo=photo_id, caption=text)
+                else:
+                    await bot.send_message(c["id"], text)
                 sent += 1
             except Exception:
                 pass
