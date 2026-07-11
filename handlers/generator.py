@@ -53,6 +53,21 @@ LEVEL_MAP = {
     "lvl_4": (4, "🔥 Атлет"),
 }
 
+MAX_DIFFICULTY_BY_LEVEL = {1: 2, 2: 3, 3: 4, 4: 5}
+
+
+def filter_by_difficulty(found: list, level: int) -> list:
+    max_diff = MAX_DIFFICULTY_BY_LEVEL.get(level, 5)
+    return [e for e in found if e.get("difficulty", 3) <= max_diff]
+
+
+def program_to_storable(program: dict) -> list:
+    return [{"day_num": k, **v} for k, v in program.items()]
+
+
+def program_from_storable(data: list) -> dict:
+    return {int(item["day_num"]): {kk: vv for kk, vv in item.items() if kk != "day_num"} for item in data}
+
 
 # ══════════════════════════════════════════════════════
 # ПІДХОДИ / ПОВТОРИ
@@ -876,7 +891,7 @@ def find_exercises(
             level=level,
         )
         # Фільтруємо по назві
-        matched = [e for e in found if e["name"] == name]
+        matched = filter_by_difficulty([e for e in found if e["name"] == name], level)
         if matched:
             ex = matched[0].copy()
             results.append(ex)
@@ -896,12 +911,15 @@ def find_exercises(
                 goal=goal,
                 ex_type="сила",
             )
+            found = filter_by_difficulty(found, level)
             # Без рівня
             if not found:
                 found = get_exercises(muscles=[muscle], equipment=equipment, goal=goal)
+                found = filter_by_difficulty(found, level)
             # Без цілі
             if not found:
                 found = get_exercises(muscles=[muscle], equipment=equipment)
+                found = filter_by_difficulty(found, level)
 
             random.shuffle(found)
             for ex in found:
@@ -918,6 +936,57 @@ def find_exercises(
 # ══════════════════════════════════════════════════════
 # ГЕНЕРАТОР ПРОГРАМИ
 # ══════════════════════════════════════════════════════
+
+
+SUPERSET_PAIRS = {
+    frozenset({"груди", "трицепс"}),
+    frozenset({"груди", "біцепс"}),
+    frozenset({"спина_ширина", "біцепс"}),
+    frozenset({"спина_товщина", "біцепс"}),
+    frozenset({"плечі", "трицепс"}),
+    frozenset({"плечі", "задні дельти"}),
+    frozenset({"квадрицепс", "біцепс стегна"}),
+}
+
+
+def build_supersets(day_exercises: list) -> list:
+    """Для рівнів 3-4 об'єднує ізоляційні вправи в суперсети:
+    спочатку антагоністичні/супутні пари між різними групами,
+    потім пари всередині тієї ж групи."""
+    isolation = [e for e in day_exercises if e.get("ex_type") == "isolation"]
+    others = [e for e in day_exercises if e.get("ex_type") != "isolation"]
+
+    by_group = {}
+    for e in isolation:
+        by_group.setdefault(e.get("_group", ""), []).append(e)
+
+    paired = []
+    groups = list(by_group.keys())
+
+    for i in range(len(groups)):
+        for j in range(i + 1, len(groups)):
+            g1, g2 = groups[i], groups[j]
+            if frozenset({g1, g2}) in SUPERSET_PAIRS:
+                while by_group[g1] and by_group[g2]:
+                    paired.append((by_group[g1].pop(0), by_group[g2].pop(0)))
+
+    leftover = []
+    for items in by_group.values():
+        while len(items) >= 2:
+            paired.append((items.pop(0), items.pop(0)))
+        leftover.extend(items)
+
+    result = list(others)
+    sid = 1
+    for a, b in paired:
+        a["superset_id"] = sid
+        b["superset_id"] = sid
+        result.append(a)
+        result.append(b)
+        sid += 1
+    result.extend(leftover)
+    return result
+
 
 def generate_program(location: str, equipment: list, goal: str, level: int, days: int) -> dict:
     split_key = SPLITS.get(location, SPLITS["зал"])
@@ -974,8 +1043,12 @@ def generate_program(location: str, equipment: list, goal: str, level: int, days
                 ex["sets"] = sets
                 ex["reps"] = reps
                 ex["ex_type"] = ex_type
+                ex["_group"] = muscle_group
 
             day_exercises.extend(found)
+
+        if level in (3, 4):
+            day_exercises = build_supersets(day_exercises)
 
         program[day_num] = {
             "name": template["name"],
@@ -1025,15 +1098,30 @@ def format_program(program: dict, goal: str, level: int, days: int, equipment: l
             day_text += day_data["note"] + "\n"
         else:
             prev_type = None
-            for ex in day_data["exercises"]:
+            exs = day_data["exercises"]
+            i = 0
+            while i < len(exs):
+                ex = exs[i]
                 ex_type = ex.get("ex_type", "base")
-                # Розділювач між секціями
                 if prev_type in ("base", "assist") and ex_type == "abs":
                     day_text += "\n<i>— Прес —</i>\n"
                 elif prev_type in ("base", "assist") and ex_type == "calves":
                     day_text += "\n<i>— Литки —</i>\n"
                 prev_type = ex_type
+
+                sid = ex.get("superset_id")
+                if sid is not None and i + 1 < len(exs) and exs[i + 1].get("superset_id") == sid:
+                    partner = exs[i + 1]
+                    day_text += (
+                        "🔗 <b>Суперсет</b> (без відпочинку між вправами):\n"
+                        f"   1) {ex['name']} — {ex['sets']}×{ex['reps']}\n"
+                        f"   2) {partner['name']} — {partner['sets']}×{partner['reps']}\n"
+                    )
+                    i += 2
+                    continue
+
                 day_text += f"• {ex['name']} — {ex['sets']}×{ex['reps']}\n"
+                i += 1
 
             if day_data.get("note"):
                 day_text += f"\n{day_data['note']}\n"
@@ -1067,11 +1155,9 @@ def format_program(program: dict, goal: str, level: int, days: int, equipment: l
 # ХЕНДЛЕРИ TELEGRAM
 # ══════════════════════════════════════════════════════
 
-@router.callback_query(F.data == "open_generator")
-async def generator_start(callback: CallbackQuery, state: FSMContext):
+async def check_generation_limit(callback: CallbackQuery) -> bool:
     user = await get_user(callback.from_user.id)
     sub = user.get("subscription", "free") if user else "free"
-
     if sub == "free":
         last_gen = user.get("last_generation_date", "") if user else ""
         if last_gen:
@@ -1083,9 +1169,66 @@ async def generator_start(callback: CallbackQuery, state: FSMContext):
                         f"❌ Безкоштовно — 1 генерація на тиждень.\nНаступна: {next_date}",
                         show_alert=True
                     )
-                    return
+                    return False
             except ValueError:
                 pass
+    return True
+
+
+async def generate_and_send(callback: CallbackQuery, state: FSMContext, location, equipment, goal, level, days):
+    await callback.message.edit_text("⏳ Генерую програму...")
+
+    program = generate_program(location, equipment, goal, level, days)
+
+    if not program:
+        await callback.message.edit_text(
+            "❌ Не вдалося знайти вправи для твоїх параметрів.\n"
+            "Спробуй додати більше обладнання або змінити локацію.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Спробувати ще раз", callback_data="open_generator")],
+                [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
+            ]),
+        )
+        return
+
+    await state.update_data(
+        current_program=program_to_storable(program),
+        current_goal=goal,
+        current_level=level,
+        current_days=days,
+        current_equipment=equipment,
+    )
+
+    parts = format_program(program, goal, level, days, equipment)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Згенерувати ще", callback_data="regen_program")],
+        [InlineKeyboardButton(text="🔁 Замінити вправу", callback_data="replace_start")],
+        [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
+    ])
+
+    for i, part in enumerate(parts):
+        if i == 0:
+            await callback.message.edit_text(part, reply_markup=kb if len(parts) == 1 else None)
+        elif i == len(parts) - 1:
+            await callback.message.answer(part, reply_markup=kb)
+        else:
+            await callback.message.answer(part)
+
+    user = await get_user(callback.from_user.id)
+    sub = user.get("subscription", "free") if user else "free"
+    if sub == "free":
+        await update_user_field(
+            callback.from_user.id,
+            "last_generation_date",
+            datetime.now().strftime("%d.%m.%Y")
+        )
+
+
+@router.callback_query(F.data == "open_generator")
+async def generator_start(callback: CallbackQuery, state: FSMContext):
+    if not await check_generation_limit(callback):
+        return
 
     await state.set_state(GeneratorStates.location)
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -1251,49 +1394,179 @@ async def generator_level(callback: CallbackQuery, state: FSMContext):
 async def generator_days(callback: CallbackQuery, state: FSMContext):
     days = int(callback.data.replace("days_", ""))
     data = await state.get_data()
-    await state.clear()
 
     location = data["location"]
     equipment = data["selected_equipment"]
     goal = data["goal"]
     level = data["level"]
 
-    await callback.message.edit_text("⏳ Генерую програму...")
+    await state.update_data(
+        last_location=location,
+        last_equipment=equipment,
+        last_goal=goal,
+        last_level=level,
+        last_days=days,
+    )
+    await state.set_state(None)
 
-    program = generate_program(location, equipment, goal, level, days)
+    await generate_and_send(callback, state, location, equipment, goal, level, days)
 
-    if not program:
-        await callback.message.edit_text(
-            "❌ Не вдалося знайти вправи для твоїх параметрів.\n"
-            "Спробуй додати більше обладнання або змінити локацію.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔄 Спробувати ще раз", callback_data="open_generator")],
-                [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
-            ]),
-        )
+
+@router.callback_query(F.data == "regen_program")
+async def regen_program(callback: CallbackQuery, state: FSMContext):
+    if not await check_generation_limit(callback):
         return
 
-    parts = format_program(program, goal, level, days, equipment)
+    data = await state.get_data()
+    location = data.get("last_location")
+    equipment = data.get("last_equipment")
+    goal = data.get("last_goal")
+    level = data.get("last_level")
+    days = data.get("last_days")
 
+    if not all([location, equipment, goal, level, days]):
+        await callback.answer("⚠️ Параметри втрачені, почни спочатку", show_alert=True)
+        await generator_start(callback, state)
+        return
+
+    await generate_and_send(callback, state, location, equipment, goal, level, days)
+
+
+@router.callback_query(F.data == "replace_start")
+async def replace_start(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    stored = data.get("current_program")
+    if not stored:
+        await callback.answer("⚠️ Спочатку згенеруй програму", show_alert=True)
+        return
+    program = program_from_storable(stored)
+
+    buttons = []
+    for day_num, day_data in program.items():
+        if not day_data.get("exercises"):
+            continue
+        buttons.append([InlineKeyboardButton(
+            text=f"День {day_num} — {day_data['name']}",
+            callback_data=f"replace_day:{day_num}",
+        )])
+    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data="replace_cancel")])
+
+    await callback.message.answer(
+        "🔁 <b>Заміна вправи</b>\n\nОбери день:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("replace_day:"))
+async def replace_day(callback: CallbackQuery, state: FSMContext):
+    day_num = int(callback.data.split(":", 1)[1])
+    data = await state.get_data()
+    stored = data.get("current_program")
+    if not stored:
+        await callback.answer("⚠️ Програма застаріла", show_alert=True)
+        return
+    program = program_from_storable(stored)
+    day_data = program.get(day_num)
+    if not day_data:
+        await callback.answer("⚠️ День не знайдено", show_alert=True)
+        return
+
+    buttons = []
+    for i, ex in enumerate(day_data["exercises"]):
+        label = ex["name"]
+        if len(label) > 45:
+            label = label[:42] + "..."
+        buttons.append([InlineKeyboardButton(text=f"{i + 1}. {label}", callback_data=f"replace_ex:{day_num}:{i}")])
+    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data="replace_cancel")])
+
+    await callback.message.edit_text(
+        f"🔁 <b>День {day_num} — {day_data['name']}</b>\n\nЯку вправу замінити?",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("replace_ex:"))
+async def replace_ex(callback: CallbackQuery, state: FSMContext):
+    _, day_num_str, idx_str = callback.data.split(":")
+    day_num = int(day_num_str)
+    idx = int(idx_str)
+
+    data = await state.get_data()
+    stored = data.get("current_program")
+    equipment = data.get("current_equipment", [])
+    level = data.get("current_level", 1)
+    goal = data.get("current_goal", "маса")
+    days = data.get("current_days", 1)
+
+    if not stored:
+        await callback.answer("⚠️ Програма застаріла", show_alert=True)
+        return
+
+    program = program_from_storable(stored)
+    day_data = program.get(day_num)
+    if not day_data or idx >= len(day_data["exercises"]):
+        await callback.answer("⚠️ Вправу не знайдено", show_alert=True)
+        return
+
+    old_ex = day_data["exercises"][idx]
+    used_names = {e["name"] for e in day_data["exercises"]}
+
+    candidates = []
+    for alt_name in old_ex.get("alternatives", []):
+        matches = [e for e in get_exercises(equipment=equipment) if e["name"] == alt_name]
+        matches = filter_by_difficulty(matches, level)
+        candidates.extend(m for m in matches if m["name"] not in used_names)
+
+    if not candidates:
+        fallback = find_exercises(
+            muscle_group=old_ex.get("_group", ""),
+            ex_type=old_ex.get("ex_type", "isolation"),
+            equipment=equipment,
+            level=level,
+            goal=goal,
+            used_names=set(used_names),
+            count=1,
+        )
+        candidates = fallback
+
+    if not candidates:
+        await callback.answer("😔 Немає доступної заміни під твоє обладнання", show_alert=True)
+        return
+
+    new_ex = random.choice(candidates).copy()
+    new_ex["sets"] = old_ex["sets"]
+    new_ex["reps"] = old_ex["reps"]
+    new_ex["ex_type"] = old_ex.get("ex_type")
+    new_ex["_group"] = old_ex.get("_group")
+    if "superset_id" in old_ex:
+        new_ex["superset_id"] = old_ex["superset_id"]
+
+    day_data["exercises"][idx] = new_ex
+    program[day_num] = day_data
+
+    await state.update_data(current_program=program_to_storable(program))
+
+    parts = format_program(program, goal, level, days, equipment)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Згенерувати ще", callback_data="open_generator")],
+        [InlineKeyboardButton(text="🔄 Згенерувати ще", callback_data="regen_program")],
+        [InlineKeyboardButton(text="🔁 Замінити вправу", callback_data="replace_start")],
         [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
     ])
 
+    await callback.message.edit_text(f"✅ Замінено: {old_ex['name']} → {new_ex['name']}")
+
     for i, part in enumerate(parts):
-        if i == 0:
-            await callback.message.edit_text(part, reply_markup=kb if len(parts) == 1 else None)
-        elif i == len(parts) - 1:
+        if i == len(parts) - 1:
             await callback.message.answer(part, reply_markup=kb)
         else:
             await callback.message.answer(part)
 
-    # Зберігаємо дату для free
-    user = await get_user(callback.from_user.id)
-    sub = user.get("subscription", "free") if user else "free"
-    if sub == "free":
-        await update_user_field(
-            callback.from_user.id,
-            "last_generation_date",
-            datetime.now().strftime("%d.%m.%Y")
-        )
+    await callback.answer("Вправу замінено ✅")
+
+
+@router.callback_query(F.data == "replace_cancel")
+async def replace_cancel(callback: CallbackQuery):
+    await callback.message.edit_text("Гаразд, залишаємо як є 🙂")
+    await callback.answer()

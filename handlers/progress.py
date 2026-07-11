@@ -10,6 +10,7 @@ from database import (
     save_exercise_result,
 )
 
+
 router = Router()
 
 
