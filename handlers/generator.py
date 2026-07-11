@@ -76,27 +76,27 @@ def program_from_storable(data: list) -> dict:
 def get_sets_reps(ex_type: str, goal: str, level: int) -> tuple:
     table = {
         "base": {
-            "маса":       {1:(3,"10-12"), 2:(4,"8-10"), 3:(5,"6-8"),  4:(5,"5-8")},
-            "сила":       {1:(3,"6-8"),  2:(4,"5-6"),  3:(5,"4-6"),  4:(6,"3-5")},
+            "маса":       {1:(3,"10-12"), 2:(4,"8-10"), 3:(4,"6-8"),  4:(4,"5-8")},
+            "сила":       {1:(3,"6-8"),  2:(4,"5-6"),  3:(4,"4-6"),  4:(5,"3-5")},
             "рельєф":     {1:(3,"12-15"),2:(4,"10-12"),3:(4,"10-12"),4:(4,"10-12")},
-            "схуднення":  {1:(3,"15-20"),2:(3,"15"),   3:(4,"12-15"),4:(4,"12-15")},
-            "витривалість":{1:(3,"20"),  2:(3,"20"),   3:(4,"15-20"),4:(4,"15-20")},
+            "схуднення":  {1:(3,"15-20"),2:(3,"15"),   3:(3,"12-15"),4:(3,"12-15")},
+            "витривалість":{1:(3,"20"),  2:(3,"20"),   3:(3,"15-20"),4:(3,"15-20")},
         },
         "assist": {
-            "маса":       {1:(3,"10-12"),2:(4,"10"),   3:(4,"8-10"), 4:(4,"8-10")},
-            "сила":       {1:(3,"8-10"), 2:(3,"8"),    3:(4,"6-8"),  4:(4,"6-8")},
-            "рельєф":     {1:(3,"12-15"),2:(3,"12"),   3:(4,"12"),   4:(4,"12-15")},
+            "маса":       {1:(3,"10-12"),2:(4,"10"),   3:(3,"8-10"), 4:(3,"8-10")},
+            "сила":       {1:(3,"8-10"), 2:(3,"8"),    3:(3,"6-8"),  4:(3,"6-8")},
+            "рельєф":     {1:(3,"12-15"),2:(3,"12"),   3:(3,"12"),   4:(3,"12-15")},
             "схуднення":  {1:(3,"15"),   2:(3,"15"),   3:(3,"15"),   4:(3,"15")},
             "витривалість":{1:(3,"20"),  2:(3,"15-20"),3:(3,"15-20"),4:(3,"15-20")},
         },
         "isolation": {
-            "маса":       {1:(2,"12-15"),2:(3,"12"),   3:(3,"12-15"),4:(4,"12-15")},
+            "маса":       {1:(2,"12-15"),2:(3,"12"),   3:(3,"12-15"),4:(3,"12-15")},
             "сила":       {1:(2,"10-12"),2:(3,"10"),   3:(3,"10-12"),4:(3,"10-12")},
-            "рельєф":     {1:(2,"15"),   2:(3,"15"),   3:(3,"15"),   4:(4,"15")},
+            "рельєф":     {1:(2,"15"),   2:(3,"15"),   3:(3,"15"),   4:(3,"15")},
             "схуднення":  {1:(2,"20"),   2:(3,"20"),   3:(3,"15-20"),4:(3,"15-20")},
             "витривалість":{1:(2,"20"),  2:(3,"20"),   3:(3,"20"),   4:(3,"20")},
         },
-        "abs":    {g: {l:(3,"15-20") for l in [1,2,3,4]} for g in GOAL_MAP.values()},
+        "abs": {g: {l:(3,"15-20") for l in [1,2,3,4]} for g in GOAL_MAP.values()},
         "calves": {g: {1:(3,"15-20"),2:(4,"15-20"),3:(5,"15-20"),4:(6,"15-20")} for g in GOAL_MAP.values()},
         "cardio": {g: {l:(3,"20 хв") for l in [1,2,3,4]} for g in GOAL_MAP.values()},
     }
@@ -710,6 +710,114 @@ MUSCLE_SEARCH = {
     "литки":          ["литки", "камбалоподібний м'яз"],
 }
 
+
+# ══════════════════════════════════════════════════════
+# РУХОВІ ПАТЕРНИ
+# ══════════════════════════════════════════════════════
+# Позначаємо, до якого типу руху належить вправа, щоб не
+# ставити в один день 2-3 вправи, які по суті одне й те саме
+# (наприклад три варіанти вертикального жиму на плечі).
+
+PATTERN_MAP = {
+    # Груди
+    "Жим штанги лежачи": "horizontal_press",
+    "Похилий жим штанги": "incline_press",
+    "Жим гантелей лежачи": "horizontal_press",
+    "Похилий жим гантелей": "incline_press",
+    "Жим штанги вниз головою": "decline_press",
+    "Жим гантелей вниз головою": "decline_press",
+    "Віджимання класичні": "horizontal_press",
+    "Віджимання з підвищенням ніг": "incline_press",
+    "Відмивання на брусах з нахилом вперед": "decline_press",
+    "Відмивання на брусах": "decline_press",
+    "TRX Віджимання": "horizontal_press",
+    "Жим гирі лежачи": "horizontal_press",
+
+    # Спина ширина (вертикальні тяги)
+    "Підтягування широким хватом": "vertical_pull",
+    "Підтягування зворотним хватом": "vertical_pull",
+    "Підтягування вузьким хватом": "vertical_pull",
+    "Тяга верхнього блоку широким хватом": "vertical_pull",
+    "Тяга верхнього блоку вузьким хватом": "vertical_pull",
+    "Тяга верхнього блоку зворотним хватом": "vertical_pull",
+    "Австралійські підтягування": "horizontal_pull",
+    "Тяга на петлях TRX (TRX Row)": "horizontal_pull",
+    "Підтягування з вагою": "vertical_pull",
+    "Вихід силою на турніку (Мускул-ап)": "vertical_pull_explosive",
+
+    # Спина товщина (горизонтальні тяги + станова)
+    "Станова тяга класична": "hip_hinge_deadlift",
+    "Станова тяга сумо": "hip_hinge_deadlift",
+    "Тяга штанги в нахилі прямим хватом": "horizontal_pull",
+    "Тяга штанги в нахилі зворотним хватом": "horizontal_pull",
+    "Тяга Т-грифа": "horizontal_pull",
+    "Тяга гантелі однією рукою": "horizontal_pull",
+    "Тяга нижнього блоку сидячи вузьким хватом": "horizontal_pull",
+    "Тяга нижнього блоку широким хватом": "horizontal_pull",
+    "Гарне ранок зі штангою": "hip_hinge",
+    "Румунська тяга зі штангою": "hip_hinge",
+    "Тяга гирі до поясу": "horizontal_pull",
+
+    # Квадрицепс
+    "Присідання зі штангою на спині": "squat_bilateral",
+    "Фронтальні присідання": "squat_bilateral",
+    "Присідання у Смітті": "squat_bilateral",
+    "Жим ногами": "squat_machine",
+    "Гак-машина присідання": "squat_machine",
+    "Присідання з гантелями": "squat_bilateral",
+    "Гоблет-присідання з гантеллю": "squat_bilateral",
+    "Присідання з власною вагою": "squat_bilateral",
+    "Присідання пістолетик": "squat_unilateral",
+    "Гоблет-присідання з гирею": "squat_bilateral",
+    "Стрибки в присіді": "squat_explosive",
+
+    # Біцепс стегна
+    "Румунська тяга з гантелями": "hip_hinge",
+    "Мертва тяга на прямих ногах зі штангою": "hip_hinge",
+    "Згинання ніг лежачи": "leg_curl",
+    "Згинання ніг стоячи": "leg_curl",
+
+    # Сідниці
+    "Ягідний місток зі штангою": "hip_thrust",
+    "Ягідний місток з гантеллю": "hip_thrust",
+    "Міст на плечах": "hip_thrust",
+    "Болгарські випади зі штангою": "lunge_unilateral",
+    "Болгарські випади з гантелями": "lunge_unilateral",
+    "Болгарські випади": "lunge_unilateral",
+    "Випади зі штангою": "lunge_unilateral",
+    "Випади з гантелями": "lunge_unilateral",
+    "Міст з резинкою на стегнах": "hip_thrust",
+    "Міст на одній нозі": "hip_thrust_unilateral",
+
+    # Плечі (вертикальний жим)
+    "Армійський жим стоячи": "vertical_press",
+    "Армійський жим сидячи": "vertical_press",
+    "Жим гантелей сидячи": "vertical_press",
+    "Жим гантелей стоячи": "vertical_press",
+    "Жим Арнольда": "vertical_press",
+    "Жим за голову": "vertical_press",
+    "Стійка на руках біля стіни": "vertical_press_bodyweight",
+    "Віджимання в упорі стоячи": "vertical_press_bodyweight",
+    "TRX Жим плечей": "vertical_press",
+    "Жим двох гирей стоячи": "vertical_press",
+
+    # Біцепс
+    "Підйом штанги на біцепс стоячи": "bicep_curl",
+    "Підйом EZ-штанги на біцепс": "bicep_curl",
+    "Підйом гантелей на біцепс стоячи": "bicep_curl",
+    "Підйом штанги на лаві Скотта": "bicep_curl_isolated",
+    "TRX Підйом на біцепс": "bicep_curl",
+
+    # Трицепс
+    "Жим штанги вузьким хватом": "horizontal_press",
+    "Французький жим лежачи зі штангою": "tricep_extension",
+    "Французький жим з гантеллю лежачи": "tricep_extension",
+    "Відмивання від лавки або стільця": "tricep_dip",
+    "TRX Розгинання трицепса": "tricep_extension",
+    "Алмазні віджимання": "horizontal_press",
+}
+
+
 # Які вправи вважаються базовими для кожної групи
 BASE_EXERCISES = {
     "груди": [
@@ -865,6 +973,7 @@ def find_exercises(
     goal: str,
     used_names: set,
     count: int,
+    used_patterns: set = None,
 ) -> list:
     """
     Знаходить вправи для конкретної групи м'язів.
@@ -891,44 +1000,52 @@ def find_exercises(
             level=level,
         )
         # Фільтруємо по назві
+        pattern = PATTERN_MAP.get(name)
+        if used_patterns is not None and pattern and pattern in used_patterns:
+            continue
+
         matched = filter_by_difficulty([e for e in found if e["name"] == name], level)
         if matched:
             ex = matched[0].copy()
             results.append(ex)
             used_names.add(name)
+            if used_patterns is not None and pattern:
+                used_patterns.add(pattern)
             if len(results) >= count:
                 return results
 
     # Якщо не вистачає — шукаємо з бази по м'язах
     if len(results) < count:
         muscle_list = MUSCLE_SEARCH.get(muscle_group, [muscle_group])
-        for muscle in muscle_list:
-            # З рівнем і ціллю
-            found = get_exercises(
-                muscles=[muscle],
-                equipment=equipment,
-                level=level,
-                goal=goal,
-                ex_type="сила",
-            )
+
+        def _primary_match(ex):
+            return ex.get("muscles") and ex["muscles"][0] in muscle_list
+
+        found = get_exercises(equipment=equipment, level=level, goal=goal, ex_type="сила")
+        found = filter_by_difficulty(found, level)
+        found = [e for e in found if _primary_match(e)]
+
+        if not found:
+            found = get_exercises(equipment=equipment, goal=goal)
             found = filter_by_difficulty(found, level)
-            # Без рівня
-            if not found:
-                found = get_exercises(muscles=[muscle], equipment=equipment, goal=goal)
-                found = filter_by_difficulty(found, level)
-            # Без цілі
-            if not found:
-                found = get_exercises(muscles=[muscle], equipment=equipment)
-                found = filter_by_difficulty(found, level)
+            found = [e for e in found if _primary_match(e)]
 
-            random.shuffle(found)
-            for ex in found:
-                if ex["name"] not in used_names and len(results) < count:
-                    results.append(ex.copy())
-                    used_names.add(ex["name"])
+        if not found:
+            found = get_exercises(equipment=equipment)
+            found = filter_by_difficulty(found, level)
+            found = [e for e in found if _primary_match(e)]
 
-            if len(results) >= count:
-                break
+        random.shuffle(found)
+        for ex in found:
+            if ex["name"] in used_names or len(results) >= count:
+                continue
+            ex_pattern = PATTERN_MAP.get(ex["name"])
+            if used_patterns is not None and ex_pattern and ex_pattern in used_patterns:
+                continue
+            results.append(ex.copy())
+            used_names.add(ex["name"])
+            if used_patterns is not None and ex_pattern:
+                used_patterns.add(ex_pattern)
 
     return results
 
@@ -950,41 +1067,48 @@ SUPERSET_PAIRS = {
 
 
 def build_supersets(day_exercises: list) -> list:
-    """Для рівнів 3-4 об'єднує ізоляційні вправи в суперсети:
-    спочатку антагоністичні/супутні пари між різними групами,
-    потім пари всередині тієї ж групи."""
-    isolation = [e for e in day_exercises if e.get("ex_type") == "isolation"]
-    others = [e for e in day_exercises if e.get("ex_type") != "isolation"]
+    """Для рівнів 3-4 об'єднує ізоляційні вправи в суперсети,
+    зберігаючи їх на початковій позиції в списку (а не в кінці)."""
+    n = len(day_exercises)
+    iso_idx = [i for i, e in enumerate(day_exercises) if e.get("ex_type") == "isolation"]
 
     by_group = {}
-    for e in isolation:
-        by_group.setdefault(e.get("_group", ""), []).append(e)
+    for i in iso_idx:
+        g = day_exercises[i].get("_group", "")
+        by_group.setdefault(g, []).append(i)
 
-    paired = []
+    pairs = []
     groups = list(by_group.keys())
-
-    for i in range(len(groups)):
-        for j in range(i + 1, len(groups)):
-            g1, g2 = groups[i], groups[j]
+    for gi in range(len(groups)):
+        for gj in range(gi + 1, len(groups)):
+            g1, g2 = groups[gi], groups[gj]
             if frozenset({g1, g2}) in SUPERSET_PAIRS:
                 while by_group[g1] and by_group[g2]:
-                    paired.append((by_group[g1].pop(0), by_group[g2].pop(0)))
+                    pairs.append((by_group[g1].pop(0), by_group[g2].pop(0)))
 
-    leftover = []
     for items in by_group.values():
         while len(items) >= 2:
-            paired.append((items.pop(0), items.pop(0)))
-        leftover.extend(items)
+            pairs.append((items.pop(0), items.pop(0)))
 
-    result = list(others)
+    skip = set()
+    anchor_pair = {}
     sid = 1
-    for a, b in paired:
-        a["superset_id"] = sid
-        b["superset_id"] = sid
-        result.append(a)
-        result.append(b)
+    for a, b in pairs:
+        anchor = min(a, b)
+        partner = max(a, b)
+        anchor_pair[anchor] = partner
+        skip.add(partner)
+        day_exercises[a]["superset_id"] = sid
+        day_exercises[b]["superset_id"] = sid
         sid += 1
-    result.extend(leftover)
+
+    result = []
+    for i in range(n):
+        if i in skip:
+            continue
+        result.append(day_exercises[i])
+        if i in anchor_pair:
+            result.append(day_exercises[anchor_pair[i]])
     return result
 
 
@@ -997,6 +1121,7 @@ def generate_program(location: str, equipment: list, goal: str, level: int, days
     used_names = set()  # захист від повторів між днями
 
     for day_num, day_key in enumerate(day_keys, 1):
+        used_patterns = set()
         template = DAY_STRUCTURES.get(day_key)
         if not template:
             continue
@@ -1025,6 +1150,7 @@ def generate_program(location: str, equipment: list, goal: str, level: int, days
                     goal=goal,
                     used_names=local_used,
                     count=count,
+                    used_patterns=used_patterns,
                 )
             else:
                 found = find_exercises(
@@ -1035,6 +1161,7 @@ def generate_program(location: str, equipment: list, goal: str, level: int, days
                     goal=goal,
                     used_names=used_names,
                     count=count,
+                    used_patterns=used_patterns,
                 )
 
             # Додаємо підходи і повтори
@@ -1062,6 +1189,24 @@ def generate_program(location: str, equipment: list, goal: str, level: int, days
 # ══════════════════════════════════════════════════════
 # ФОРМАТУВАННЯ ТЕКСТУ ПРОГРАМИ
 # ══════════════════════════════════════════════════════
+
+
+GROUP_LABELS = {
+    "груди": "Груди",
+    "спина_ширина": "Спина (ширина)",
+    "спина_товщина": "Спина (товщина)",
+    "квадрицепс": "Квадрицепс",
+    "біцепс стегна": "Задня поверхня стегна",
+    "сідниці": "Сідниці",
+    "плечі": "Плечі",
+    "задні дельти": "Задні дельти",
+    "трапеція": "Трапеція",
+    "біцепс": "Біцепс",
+    "трицепс": "Трицепс",
+    "прес": "Прес",
+    "литки": "Литки",
+}
+
 
 def format_program(program: dict, goal: str, level: int, days: int, equipment: list) -> list:
     """Повертає список частин тексту (може бути кілька якщо довге)"""
@@ -1097,26 +1242,36 @@ def format_program(program: dict, goal: str, level: int, days: int, equipment: l
         if not day_data["exercises"] and day_data.get("note"):
             day_text += day_data["note"] + "\n"
         else:
-            prev_type = None
+            prev_group = None
             exs = day_data["exercises"]
             i = 0
             while i < len(exs):
                 ex = exs[i]
-                ex_type = ex.get("ex_type", "base")
-                if prev_type in ("base", "assist") and ex_type == "abs":
-                    day_text += "\n<i>— Прес —</i>\n"
-                elif prev_type in ("base", "assist") and ex_type == "calves":
-                    day_text += "\n<i>— Литки —</i>\n"
-                prev_type = ex_type
+                group = ex.get("_group")
+                if group != prev_group:
+                    label = GROUP_LABELS.get(group, group)
+                    if label:
+                        day_text += f"\n<i>— {label} —</i>\n"
+                prev_group = group
 
                 sid = ex.get("superset_id")
                 if sid is not None and i + 1 < len(exs) and exs[i + 1].get("superset_id") == sid:
                     partner = exs[i + 1]
-                    day_text += (
-                        "🔗 <b>Суперсет</b> (без відпочинку між вправами):\n"
-                        f"   1) {ex['name']} — {ex['sets']}×{ex['reps']}\n"
-                        f"   2) {partner['name']} — {partner['sets']}×{partner['reps']}\n"
-                    )
+                    partner_group = partner.get("_group")
+                    if partner_group and partner_group != group:
+                        g1 = GROUP_LABELS.get(group, group)
+                        g2 = GROUP_LABELS.get(partner_group, partner_group)
+                        day_text += (
+                            f"🔗 <b>Суперсет</b> ({g1} + {g2}, без відпочинку):\n"
+                            f"   1) {ex['name']} — {ex['sets']}×{ex['reps']}\n"
+                            f"   2) {partner['name']} — {partner['sets']}×{partner['reps']}\n"
+                        )
+                    else:
+                        day_text += (
+                            "🔗 <b>Суперсет</b> (без відпочинку між вправами):\n"
+                            f"   1) {ex['name']} — {ex['sets']}×{ex['reps']}\n"
+                            f"   2) {partner['name']} — {partner['sets']}×{partner['reps']}\n"
+                        )
                     i += 2
                     continue
 
@@ -1311,9 +1466,13 @@ async def generator_equipment(callback: CallbackQuery, state: FSMContext):
 
     if eq_name in selected:
         selected.remove(eq_name)
+        if eq_name == "тренажер" and "блок" in selected:
+            selected.remove("блок")
         await callback.answer(f"❌ {eq_name} прибрано")
     else:
         selected.append(eq_name)
+        if eq_name == "тренажер" and "блок" not in selected:
+            selected.append("блок")
         await callback.answer(f"✅ {eq_name} додано")
 
     await state.update_data(selected_equipment=selected)
