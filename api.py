@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from urllib.parse import parse_qsl
 from bson import ObjectId
 from dotenv import load_dotenv
@@ -302,7 +302,7 @@ async def start_session(request: Request):
         "current_exercise_idx": 0,
         "current_set_idx": 0,
         "volume_so_far": 0,
-        "started_at": datetime.now(timezone.utc),
+        "started_at": datetime.utcnow(),
         "finished_at": None,
     }
     result = await db["sessions"].insert_one(doc)
@@ -333,7 +333,7 @@ async def log_set(request: Request):
     is_pr = weight > best_before
     delta = round(weight - best_before, 1) if is_pr and best_before > 0 else None
 
-    new_entry = {"weight": weight, "reps": reps, "date": datetime.now(timezone.utc).strftime("%Y-%m-%d")}
+    new_entry = {"weight": weight, "reps": reps, "date": datetime.utcnow().strftime("%Y-%m-%d")}
 
     # Рахуємо наступну позицію (та сама логіка, що й на фронті)
     total_sets_in_ex = len(exercise["planned"])
@@ -372,7 +372,7 @@ async def finish_session(request: Request):
         raise HTTPException(status_code=400, detail="Session already finished")
 
     user = await db["users"].find_one({"_id": user_id})
-    finished_at = datetime.now(timezone.utc)
+    finished_at = datetime.utcnow()
     duration_sec = int((finished_at - doc["started_at"]).total_seconds())
 
     total_volume = 0
