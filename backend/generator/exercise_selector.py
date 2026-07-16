@@ -14,11 +14,11 @@ from .volume import filter_by_difficulty
 
 
 # ══════════════════════════════════════════════════════
-# EXERCISE SCORE ENGINE
+# EXERCISE SCORE ENGINE 2.0
 # ══════════════════════════════════════════════════════
 # При рівних умовах (той самий патерн, та сама група м'язів,
 # обидві доступні під обладнання) — деякі вправи об'єктивно
-# кращі за інші. Три критерії:
+# кращі за інші. П'ять критеріїв:
 #
 # 1. Вільна вага краща за тренажер (більше стабілізаторів,
 #    краще для росту й сили)
@@ -27,6 +27,12 @@ from .volume import filter_by_difficulty
 # 3. Білатеральні вправи пріоритетні для базових слотів (простіше
 #    прогресувати вагою), унілатеральні — для допоміжних/ізоляції
 #    (краще для балансу лівого/правого)
+# 4. Compound-рухи пріоритетні для базових слотів (Exercise Database 2.0)
+# 5. Stimulus вправи відповідає цілі користувача (Exercise Database 2.0)
+#
+# 2.0: критерії 3-5 тепер читають готові поля прямо з бази
+# (unilateral/compound/stimulus, записані Exercise Database 2.0),
+# а не рахують патерн повторно на кожен виклик.
 #
 # Score НЕ робить вибір детермінованим — використовується як вага
 # для випадкового вибору, щоб "Згенерувати ще" й далі давало
@@ -34,8 +40,17 @@ from .volume import filter_by_difficulty
 
 FREE_WEIGHT_EQUIPMENT = {"штанга", "гантелі", "гиря", "власна вага", "турнік", "бруси", "кільця", "TRX"}
 
+# Який stimulus найкраще відповідає цілі користувача
+GOAL_TO_STIMULUS = {
+    "маса": "гіпертрофія",
+    "рельєф": "гіпертрофія",
+    "сила": "сила",
+    "схуднення": "витривалість",
+    "витривалість": "витривалість",
+}
 
-def get_exercise_score(ex: dict, level: int, ex_type: str, pattern: str = None) -> float:
+
+def get_exercise_score(ex: dict, level: int, ex_type: str, goal: str = None) -> float:
     score = 0.0
 
     # 1. Вільна вага краще за тренажер
@@ -47,21 +62,29 @@ def get_exercise_score(ex: dict, level: int, ex_type: str, pattern: str = None) 
     difficulty = ex.get("difficulty", 3)
     score -= abs(difficulty - level) * 0.7
 
-    # 3. Білатеральність відповідно до типу слоту
-    is_unilateral = bool(pattern) and "unilateral" in pattern
+    # 3. Білатеральність відповідно до типу слоту (поле з бази, 2.0)
+    is_unilateral = ex.get("unilateral", False)
     if ex_type == "base" and not is_unilateral:
         score += 1.0
     elif ex_type in ("assist", "isolation") and is_unilateral:
         score += 0.5
 
+    # 4. Compound-рухи пріоритетні для базових слотів (поле з бази, 2.0)
+    if ex_type == "base" and ex.get("compound"):
+        score += 1.5
+
+    # 5. Stimulus вправи відповідає цілі (поле з бази, 2.0)
+    if goal and ex.get("stimulus") == GOAL_TO_STIMULUS.get(goal):
+        score += 1.0
+
     return score
 
 
-def _score_weighted_shuffle(exercises: list, level: int, ex_type: str, get_pattern_fn, jitter: float = 1.5) -> list:
+def _score_weighted_shuffle(exercises: list, level: int, ex_type: str, goal: str = None, jitter: float = 1.5) -> list:
     """Сортує список вправ за Exercise Score + випадковий шум — кращі
     вправи частіше опиняються попереду, але не гарантовано завжди."""
     scored = [
-        (get_exercise_score(ex, level, ex_type, get_pattern_fn(ex["name"])) + random.uniform(-jitter, jitter), ex)
+        (get_exercise_score(ex, level, ex_type, goal) + random.uniform(-jitter, jitter), ex)
         for ex in exercises
     ]
     scored.sort(key=lambda t: t[0], reverse=True)
@@ -1044,7 +1067,7 @@ def find_exercises(
             found = filter_by_difficulty(found, level)
             found = [e for e in found if _primary_match(e) and _is_working_type(e)]
 
-        found = _score_weighted_shuffle(found, level, ex_type, get_pattern)
+        found = _score_weighted_shuffle(found, level, ex_type, goal)
 
         # Прохід 1: звичайний підбір з блокуванням used_names, патерну
         # і родини патернів (Compatibility Engine — напр. не більше
@@ -1079,7 +1102,7 @@ def find_exercises(
             wide_found = get_exercises(equipment=equipment, level=level)
             wide_found = filter_by_difficulty(wide_found, level)
             wide_found = [e for e in wide_found if _primary_match(e) and _is_working_type(e)]
-            wide_found = _score_weighted_shuffle(wide_found, level, ex_type, get_pattern)
+            wide_found = _score_weighted_shuffle(wide_found, level, ex_type, goal)
             for ex in wide_found:
                 if ex["name"] in used_names or len(results) >= count:
                     continue

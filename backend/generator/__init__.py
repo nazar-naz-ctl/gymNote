@@ -55,3 +55,26 @@ all = [
     "is_axial",
     "validate_program",
 ]
+
+
+# ══════════════════════════════════════════════════════
+# EXERCISE DATABASE 2.0 — збагачення бази метаданими
+# ══════════════════════════════════════════════════════
+# Виконується ОДИН РАЗ, тут, у самому кінці файлу — до цього моменту
+# exercise_selector.py і recovery.py вже повністю завантажені
+# (тому get_pattern/get_fatigue_score точно доступні), а exercises_db.py
+# теж вже завантажений раніше (його імпортував exercise_selector.py
+# на самому початку). Імпорт тут, а не на початку exercises_db.py,
+# свідомо — щоб уникнути циклічного імпорту.
+try:
+    from exercises_db import exercises as _all_exercises
+    from .enrichment import enrich_all
+
+    enrich_all(_all_exercises, get_pattern, get_fatigue_score)
+except Exception as _enrich_error:  # noqa: BLE001
+    # Збагачення бази — не критична для роботи генератора функція
+    # (генератор і так рахує ці речі сам, окремо). Якщо тут щось
+    # піде не так — краще змовчати і не блокувати старт бота, ніж
+    # впасти через непринципову деталь.
+    import logging
+    logging.getLogger(__name__).warning(f"Не вдалося збагатити базу вправ метаданими: {_enrich_error}")
