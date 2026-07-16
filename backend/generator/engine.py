@@ -181,7 +181,7 @@ def generate_program(location: str, equipment: list, goal: str, level: int, days
             sets = apply_scale_to_sets(sets, muscle_group, volume_factors)
             for ex in found:
                 ex_sets = sets
-                if is_axial(ex["name"]):
+                if ex.get("spine_load", 1) >= 5:
                     ex_sets = max(1, round(sets * axial_factor_today))
                 ex["sets"] = ex_sets
                 ex["reps"] = reps

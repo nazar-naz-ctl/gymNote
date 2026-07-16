@@ -75,7 +75,7 @@ try:
     from exercises_db import exercises as _all_exercises
     from .enrichment import enrich_all
 
-    enrich_all(_all_exercises, get_pattern, get_fatigue_score)
+    enrich_all(_all_exercises)
 except Exception as _enrich_error:  # noqa: BLE001
     # Збагачення бази — не критична для роботи генератора функція
     # (генератор і так рахує ці речі сам, окремо). Якщо тут щось

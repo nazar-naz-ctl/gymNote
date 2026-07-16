@@ -1,84 +1,42 @@
 """
 Fatigue Engine + Weekly Fatigue Manager
 ════════════════════════════════════════
-Оцінка системної втоми вправ (Fatigue Score) на основі рухового
-патерну, та контроль накопичення важких осьових навантажень
-(станова тяга, присідання) між сусідніми днями тижня.
+Оцінка системної втоми вправ (Fatigue Score) та контроль
+накопичення важких осьових навантажень (станова тяга, присідання)
+між сусідніми днями тижня.
+
+FATIGUE_BY_PATTERN/AXIAL_PATTERNS переїхали в enrichment.py — там
+вони "насіннєві" дані для первинного заповнення бази (fatigue,
+spine_load — вже прямо на кожній вправі). get_fatigue_score()/
+is_axial() нижче — тонкі обгортки "по імені" для випадків, коли під
+рукою немає самого об'єкта вправи; деінде в генераторі (engine.py)
+ці значення читаються НАПРЯМУ з об'єкта: ex.get("fatigue"),
+ex.get("spine_load", 1) >= 5.
 """
 
-from .exercise_selector import get_pattern
-
-FATIGUE_BY_PATTERN = {
-    "hip_hinge_deadlift": 5,
-    "squat_bilateral": 5,
-    "olympic_pull": 5,
-    "olympic_press": 5,
-    "vertical_pull_explosive": 5,
-
-    "squat_machine": 4,
-    "squat_explosive": 4,
-    "squat_unilateral": 4,
-    "lunge_unilateral": 4,
-    "horizontal_press": 4,
-    "vertical_press": 4,
-    "horizontal_pull": 4,
-    "vertical_pull": 4,
-    "hip_thrust": 4,
-    "carry": 4,
-
-    "incline_press": 3,
-    "decline_press": 3,
-    "hip_hinge": 3,
-    "leg_curl": 3,
-    "leg_extension": 3,
-    "hip_thrust_unilateral": 3,
-    "upright_row": 3,
-    "shrug": 3,
-    "chest_fly": 3,
-    "pullover": 3,
-    "lat_pullover": 3,
-    "core_stability": 3,
-    "conditioning": 3,
-
-    "lateral_raise": 2,
-    "front_raise": 2,
-    "rear_delt_fly": 2,
-    "bicep_curl": 2,
-    "bicep_curl_isolated": 2,
-    "tricep_extension": 2,
-    "tricep_dip": 2,
-    "core_flexion": 2,
-    "core_rotation": 2,
-    "hip_abduction": 2,
-    "hip_adduction": 2,
-    "rotation": 2,
-    "forearm": 2,
-
-    "calf_raise": 1,
-    "neck": 1,
-    "mobility": 1,
-}
-
-DEFAULT_FATIGUE = 3
-
-AXIAL_PATTERNS = {
-    "hip_hinge_deadlift",
-    "squat_bilateral",
-    "squat_machine",
-    "olympic_pull",
-    "olympic_press",
-}
+_FATIGUE_BY_NAME_CACHE = None
 
 
 def get_fatigue_score(name: str) -> int:
-    """Fatigue Score (1-5) для конкретної вправи, за її патерном."""
-    pattern = get_pattern(name)
-    return FATIGUE_BY_PATTERN.get(pattern, DEFAULT_FATIGUE)
+    """Fatigue Score (1-5) для конкретної вправи — читає з уже
+    збагаченої бази (exercises_db), а не з окремого словника."""
+    global _FATIGUE_BY_NAME_CACHE
+    if _FATIGUE_BY_NAME_CACHE is None:
+        from exercises_db import exercises as _all_exercises
+        _FATIGUE_BY_NAME_CACHE = {e["name"]: e.get("fatigue", 3) for e in _all_exercises}
+    return _FATIGUE_BY_NAME_CACHE.get(name, 3)
 
 
 def is_axial(name: str) -> bool:
-    """Чи є вправа осьовою (навантажує хребет системно)."""
-    return get_pattern(name) in AXIAL_PATTERNS
+    """Чи є вправа осьовою (навантажує хребет системно) — за полем
+    spine_load з бази (spine_load >= 5 відповідає точно тим самим
+    п'яти патернам, що раніше були в AXIAL_PATTERNS)."""
+    global _FATIGUE_BY_NAME_CACHE  # той самий кеш можна розширити, але простіше окремо
+    from exercises_db import exercises as _all_exercises
+    for e in _all_exercises:
+        if e["name"] == name:
+            return e.get("spine_load", 1) >= 5
+    return False
 
 
 AXIAL_MUSCLE_GROUPS = {"квадрицепс", "спина_товщина", "сідниці", "біцепс стегна"}
