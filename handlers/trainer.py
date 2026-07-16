@@ -7,6 +7,7 @@ from config import TRAINER_ID, BOT_TOKEN
 from database import get_user, get_all_users, update_user_field
 from database.mongo import db as mongo_db
 from keyboards import trainer_menu_kb
+from datetime import datetime
 
 router = Router()
 
@@ -459,6 +460,92 @@ async def trainer_stats(callback: CallbackQuery):
         f"📬 Без відповіді: <b>{unanswered}</b>",
         reply_markup=kb,
     )
+
+# ── Тренер — активність клієнтів ──────────────────
+
+def _activity_bucket(last_active_str, now) -> tuple:
+    """
+    Повертає (ранг для сортування, іконка, підпис) на основі того,
+    коли користувач востаннє щось робив у боті.
+    Ранг 0 — найактивніші, вищий ранг — довше не заходили.
+    """
+    if not last_active_str:
+        return 4, "⚫", "ніколи не заходив"
+    try:
+        last = datetime.fromisoformat(last_active_str)
+    except ValueError:
+        return 4, "⚫", "невідомо коли"
+
+    delta_days = (now - last).days
+
+    if delta_days <= 0:
+        return 0, "🟢", "сьогодні"
+    if delta_days <= 3:
+        return 0, "🟢", f"{delta_days} дн. тому"
+    if delta_days <= 7:
+        return 1, "🟡", f"{delta_days} дн. тому"
+    if delta_days <= 30:
+        return 2, "🟠", f"{delta_days} дн. тому"
+    return 3, "🔴", f"{delta_days} дн. тому"
+
+
+@router.callback_query(F.data == "t_activity")
+async def trainer_activity(callback: CallbackQuery):
+    if callback.from_user.id != TRAINER_ID:
+        await callback.answer("⛔ Доступ заборонено.", show_alert=True)
+        return
+
+    now = datetime.utcnow()
+    all_users = await get_all_users()
+
+    rows = []
+    for uid, data in all_users.items():
+        try:
+            user_id = int(uid)
+        except ValueError:
+            continue
+        if user_id == TRAINER_ID or not isinstance(data, dict) or not data.get("registered"):
+            continue
+        rank, icon, label = _activity_bucket(data.get("last_active"), now)
+        rows.append((rank, icon, label, data.get("name", "Невідомий"), user_id))
+
+    kb_back = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="← Назад", callback_data="main_menu")],
+    ])
+
+    if not rows:
+        await callback.message.edit_text(
+            "📈 <b>Активність клієнтів</b>\n\nЩе немає клієнтів.",
+            reply_markup=kb_back,
+        )
+        return
+
+    rows.sort(key=lambda r: r[0])
+
+    counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
+    for r in rows:
+        counts[r[0]] += 1
+
+    text = (
+        f"📈 <b>Активність клієнтів</b>\n\n"
+        f"🟢 Активні (0-3 дн.): <b>{counts[0]}</b>\n"
+        f"🟡 Нещодавно (4-7 дн.): <b>{counts[1]}</b>\n"
+        f"🟠 Затихають (8-30 дн.): <b>{counts[2]}</b>\n"
+        f"🔴 Неактивні (30+ дн.): <b>{counts[3]}</b>\n"
+        f"⚫ Ніколи не заходили: <b>{counts[4]}</b>\n\n"
+        f"<i>Список нижче — від найактивніших:</i>"
+    )
+
+    buttons = []
+    for rank, icon, label, name, user_id in rows[:40]:
+        buttons.append([InlineKeyboardButton(
+            text=f"{icon} {name} — {label}",
+            callback_data=f"t_client_{user_id}",
+        )])
+    buttons.append([InlineKeyboardButton(text="← Назад", callback_data="main_menu")])
+
+    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+
 
 @router.callback_query(F.data == "t_broadcast")
 async def trainer_broadcast_prompt(callback: CallbackQuery):

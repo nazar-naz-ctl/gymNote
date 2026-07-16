@@ -10,6 +10,7 @@ from aiogram.enums import ParseMode
 from config import BOT_TOKEN, BOT_NAME
 from handlers import main_router
 from database import get_all_users, update_user_field, get_user
+from middlewares import ActivityMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -112,6 +113,7 @@ async def main():
             return await handler(event, data)
 
     dp.update.middleware(LoggingMiddleware())
+    dp.update.middleware(ActivityMiddleware())
     dp.include_router(main_router)
     logger.info(f"🚀 {BOT_NAME} запущено")
     asyncio.create_task(check_subscriptions_daily())

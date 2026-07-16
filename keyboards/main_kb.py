@@ -32,6 +32,7 @@ def trainer_menu_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="✍️ Скласти тренування",  callback_data="t_create_workout2")],
         [InlineKeyboardButton(text="📬 Вхідні повідомлення", callback_data="t_inbox")],
         [InlineKeyboardButton(text="📊 Статистика",          callback_data="t_stats")],
+        [InlineKeyboardButton(text="📈 Активність",          callback_data="t_activity")],
         [InlineKeyboardButton(text="💳 Підписки",            callback_data="t_subscriptions")],
         [InlineKeyboardButton(text="⚙️ Налаштування",        callback_data="t_settings")],
     ])
