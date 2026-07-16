@@ -36,16 +36,19 @@ LOCATION_MAP = {
 }
 
 EQUIPMENT_MAP = {
-    "eq_barbell":    "штанга",
-    "eq_dumbbells":  "гантелі",
-    "eq_machines":   "тренажер",
-    "eq_bodyweight": "власна вага",
-    "eq_bands":      "резинки",
-    "eq_kettlebell": "гиря",
-    "eq_pullup":     "турнік",
-    "eq_bars":       "бруси",
-    "eq_trx":        "TRX",
-    "eq_rings":      "кільця",
+    "eq_barbell":       "штанга",
+    "eq_dumbbells":     "гантелі",
+    "eq_machines":      "тренажер",
+    "eq_bodyweight":    "власна вага",
+    "eq_bands":         "резинки",
+    "eq_mini_band":     "міні-петля",
+    "eq_long_band":     "довга петля",
+    "eq_therapy_band":  "терапевтична стрічка",
+    "eq_kettlebell":    "гиря",
+    "eq_pullup":        "турнік",
+    "eq_bars":          "бруси",
+    "eq_trx":           "TRX",
+    "eq_rings":         "кільця",
 }
 
 GOAL_MAP = {
@@ -165,7 +168,10 @@ async def generator_location(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="⚙️ Тренажери", callback_data="eq_machines"),
              InlineKeyboardButton(text="🎽 Гиря", callback_data="eq_kettlebell")],
             [InlineKeyboardButton(text="🔵 TRX", callback_data="eq_trx"),
-             InlineKeyboardButton(text="🔴 Резинки", callback_data="eq_bands")],
+             InlineKeyboardButton(text="🔴 Резинки (загальні)", callback_data="eq_bands")],
+            [InlineKeyboardButton(text="🟢 Міні-петля", callback_data="eq_mini_band"),
+             InlineKeyboardButton(text="🟣 Довга петля", callback_data="eq_long_band")],
+            [InlineKeyboardButton(text="🟡 Терапевтична стрічка", callback_data="eq_therapy_band")],
             [InlineKeyboardButton(text="✅ Далі →", callback_data="eq_done")],
             [InlineKeyboardButton(text="❌ Скасувати", callback_data="main_menu")],
         ]
@@ -173,8 +179,11 @@ async def generator_location(callback: CallbackQuery, state: FSMContext):
         buttons = [
             [InlineKeyboardButton(text="💪 Гантелі", callback_data="eq_dumbbells"),
              InlineKeyboardButton(text="🎽 Гиря", callback_data="eq_kettlebell")],
-            [InlineKeyboardButton(text="🔴 Резинки", callback_data="eq_bands"),
+            [InlineKeyboardButton(text="🔴 Резинки (загальні)", callback_data="eq_bands"),
              InlineKeyboardButton(text="🔵 TRX", callback_data="eq_trx")],
+            [InlineKeyboardButton(text="🟢 Міні-петля", callback_data="eq_mini_band"),
+             InlineKeyboardButton(text="🟣 Довга петля", callback_data="eq_long_band")],
+            [InlineKeyboardButton(text="🟡 Терапевтична стрічка", callback_data="eq_therapy_band")],
             [InlineKeyboardButton(text="🏃 Власна вага", callback_data="eq_bodyweight")],
             [InlineKeyboardButton(text="✅ Далі →", callback_data="eq_done")],
             [InlineKeyboardButton(text="❌ Скасувати", callback_data="main_menu")],
@@ -183,10 +192,13 @@ async def generator_location(callback: CallbackQuery, state: FSMContext):
         buttons = [
             [InlineKeyboardButton(text="🔝 Турнік", callback_data="eq_pullup"),
              InlineKeyboardButton(text="🤸 Бруси", callback_data="eq_bars")],
-            [InlineKeyboardButton(text="🔴 Резинки", callback_data="eq_bands"),
+            [InlineKeyboardButton(text="🔴 Резинки (загальні)", callback_data="eq_bands"),
              InlineKeyboardButton(text="🏃 Власна вага", callback_data="eq_bodyweight")],
             [InlineKeyboardButton(text="⭕ Кільця", callback_data="eq_rings"),
              InlineKeyboardButton(text="🎽 Гиря", callback_data="eq_kettlebell")],
+            [InlineKeyboardButton(text="🟢 Міні-петля", callback_data="eq_mini_band"),
+             InlineKeyboardButton(text="🟣 Довга петля", callback_data="eq_long_band")],
+            [InlineKeyboardButton(text="🟡 Терапевтична стрічка", callback_data="eq_therapy_band")],
             [InlineKeyboardButton(text="✅ Далі →", callback_data="eq_done")],
             [InlineKeyboardButton(text="❌ Скасувати", callback_data="main_menu")],
         ]
