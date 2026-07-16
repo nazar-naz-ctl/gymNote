@@ -33,6 +33,7 @@ from .exercise_selector import find_exercises, get_pattern, get_exercise_score
 from .volume import filter_by_difficulty, get_sets_reps, MAX_DIFFICULTY_BY_LEVEL
 from .recovery import get_fatigue_score, is_axial
 from .validator import validate_program
+from .focus import generate_focus_workout, format_focus_workout, FOCUS_GROUP_LABELS, HARDCORE_TIERS
 
 all = [
     "generate_program",
@@ -54,6 +55,10 @@ all = [
     "get_fatigue_score",
     "is_axial",
     "validate_program",
+    "generate_focus_workout",
+    "format_focus_workout",
+    "FOCUS_GROUP_LABELS",
+    "HARDCORE_TIERS",
 ]
 
 

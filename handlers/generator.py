@@ -16,6 +16,9 @@ from backend.generator import (
     program_from_storable,
     find_exercises,
     filter_by_difficulty,
+    generate_focus_workout,
+    format_focus_workout,
+    FOCUS_GROUP_LABELS,
 )
 
 router = Router()
@@ -27,6 +30,8 @@ class GeneratorStates(StatesGroup):
     goal      = State()
     level     = State()
     days      = State()
+    focus_muscles  = State()
+    focus_hardcore = State()
 
 
 LOCATION_MAP = {
@@ -64,6 +69,20 @@ LEVEL_MAP = {
     "lvl_2": (2, "🟡 Середній"),
     "lvl_3": (3, "🔴 Просунутий"),
     "lvl_4": (4, "🔥 Атлет"),
+}
+
+FOCUS_GROUP_MAP = {
+    "fg_chest":     "груди",
+    "fg_back":      "спина",
+    "fg_shoulders": "плечі",
+    "fg_biceps":    "біцепс",
+    "fg_triceps":   "трицепс",
+    "fg_quads":     "квадрицепс",
+    "fg_hams":      "біцепс стегна",
+    "fg_glutes":    "сідниці",
+    "fg_abs":       "прес",
+    "fg_calves":    "литки",
+    "fg_traps":     "трапеція",
 }
 
 
@@ -306,15 +325,17 @@ async def generator_level(callback: CallbackQuery, state: FSMContext):
             InlineKeyboardButton(text="5 днів", callback_data="days_5"),
             InlineKeyboardButton(text="6 днів", callback_data="days_6"),
         ],
+        [InlineKeyboardButton(text="🎯 Одна/кілька груп м'язів", callback_data="days_focus")],
         [InlineKeyboardButton(text="❌ Скасувати", callback_data="main_menu")],
     ])
     await callback.message.edit_text(
-        "Крок 5/5 — Скільки днів на тиждень тренуєшся?",
+        "Крок 5/5 — Скільки днів на тиждень тренуєшся?\n\n"
+        "<i>Або обери конкретну групу м'язів для фокус-тренування</i>",
         reply_markup=kb,
     )
 
 
-@router.callback_query(GeneratorStates.days, F.data.startswith("days_"))
+@router.callback_query(GeneratorStates.days, F.data.startswith("days_") & (F.data != "days_focus"))
 async def generator_days(callback: CallbackQuery, state: FSMContext):
     days = int(callback.data.replace("days_", ""))
     data = await state.get_data()
@@ -334,6 +355,166 @@ async def generator_days(callback: CallbackQuery, state: FSMContext):
     await state.set_state(None)
 
     await generate_and_send(callback, state, location, equipment, goal, level, days)
+
+
+# ── Фокус-тренування (одна/кілька груп м'язів) ────
+
+@router.callback_query(GeneratorStates.days, F.data == "days_focus")
+async def generator_focus_start(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(selected_focus_groups=[])
+    await state.set_state(GeneratorStates.focus_muscles)
+
+    buttons = []
+    row = []
+    for key, group_value in FOCUS_GROUP_MAP.items():
+        label = FOCUS_GROUP_LABELS.get(group_value, group_value)
+        row.append(InlineKeyboardButton(text=label, callback_data=key))
+        if len(row) == 2:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+    buttons.append([InlineKeyboardButton(text="✅ Далі →", callback_data="focus_done")])
+    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data="main_menu")])
+
+    await callback.message.edit_text(
+        "🎯 <b>Фокус-тренування</b>\n\n"
+        "Обери одну або кілька груп м'язів:\n"
+        "<i>Вибери → натисни Далі</i>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+
+
+@router.callback_query(GeneratorStates.focus_muscles, F.data.startswith("fg_"))
+async def generator_focus_toggle(callback: CallbackQuery, state: FSMContext):
+    group_value = FOCUS_GROUP_MAP.get(callback.data)
+    if not group_value:
+        return
+
+    data = await state.get_data()
+    selected = data.get("selected_focus_groups", [])
+    label = FOCUS_GROUP_LABELS.get(group_value, group_value)
+
+    if group_value in selected:
+        selected.remove(group_value)
+        await callback.answer(f"❌ {label} прибрано")
+    else:
+        selected.append(group_value)
+        await callback.answer(f"✅ {label} додано")
+
+    await state.update_data(selected_focus_groups=selected)
+    selected_text = ", ".join(FOCUS_GROUP_LABELS.get(g, g) for g in selected) if selected else "нічого"
+
+    buttons = []
+    row = []
+    for key, gv in FOCUS_GROUP_MAP.items():
+        lbl = FOCUS_GROUP_LABELS.get(gv, gv)
+        prefix = "✅ " if gv in selected else ""
+        row.append(InlineKeyboardButton(text=f"{prefix}{lbl}", callback_data=key))
+        if len(row) == 2:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+    buttons.append([InlineKeyboardButton(text="✅ Далі →", callback_data="focus_done")])
+    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data="main_menu")])
+
+    await callback.message.edit_text(
+        f"🎯 <b>Фокус-тренування</b>\n\n"
+        f"Обрано: <b>{selected_text}</b>\n\n"
+        f"Обери одну або кілька груп м'язів:\n"
+        f"<i>Вибери → натисни Далі</i>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+
+
+@router.callback_query(GeneratorStates.focus_muscles, F.data == "focus_done")
+async def generator_focus_muscles_done(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    selected = data.get("selected_focus_groups", [])
+    if not selected:
+        await callback.answer("⚠️ Обери хоча б одну групу м'язів", show_alert=True)
+        return
+
+    await state.set_state(GeneratorStates.focus_hardcore)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🟢 Просте", callback_data="fh_1")],
+        [InlineKeyboardButton(text="🟡 Середнє", callback_data="fh_2")],
+        [InlineKeyboardButton(text="🟠 Важке", callback_data="fh_3")],
+        [InlineKeyboardButton(text="🔴 Хардкор", callback_data="fh_4")],
+        [InlineKeyboardButton(text="❌ Скасувати", callback_data="main_menu")],
+    ])
+    groups_text = ", ".join(FOCUS_GROUP_LABELS.get(g, g) for g in selected)
+    await callback.message.edit_text(
+        f"🎯 Групи: <b>{groups_text}</b>\n\nОбери рівень інтенсивності:",
+        reply_markup=kb,
+    )
+
+
+async def generate_and_send_focus(callback: CallbackQuery, state: FSMContext, muscle_groups, equipment, level, hardcore, goal):
+    await callback.message.edit_text("⏳ Генерую тренування...")
+
+    day = generate_focus_workout(muscle_groups, equipment, level, hardcore, goal)
+
+    if not day["exercises"]:
+        await callback.message.edit_text(
+            "❌ Не вдалося знайти вправи для цих груп м'язів під твоє обладнання.\n"
+            "Спробуй додати більше обладнання.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Спробувати ще раз", callback_data="open_generator")],
+                [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
+            ]),
+        )
+        return
+
+    await state.update_data(
+        last_focus_groups=muscle_groups,
+        last_focus_equipment=equipment,
+        last_focus_level=level,
+        last_focus_hardcore=hardcore,
+        last_focus_goal=goal,
+    )
+
+    text = format_focus_workout(day, muscle_groups, hardcore, equipment)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Згенерувати ще", callback_data="focus_regen")],
+        [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
+    ])
+    await callback.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(GeneratorStates.focus_hardcore, F.data.startswith("fh_"))
+async def generator_focus_hardcore(callback: CallbackQuery, state: FSMContext):
+    hardcore = int(callback.data.replace("fh_", ""))
+    data = await state.get_data()
+
+    muscle_groups = data.get("selected_focus_groups", [])
+    equipment = data.get("selected_equipment", [])
+    level = data.get("level", 2)
+    goal = data.get("goal", "маса")
+
+    await state.set_state(None)
+    await generate_and_send_focus(callback, state, muscle_groups, equipment, level, hardcore, goal)
+
+
+@router.callback_query(F.data == "focus_regen")
+async def focus_regen(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    muscle_groups = data.get("last_focus_groups")
+    equipment = data.get("last_focus_equipment")
+    level = data.get("last_focus_level")
+    hardcore = data.get("last_focus_hardcore")
+    goal = data.get("last_focus_goal")
+
+    if not all([muscle_groups, equipment, level, hardcore, goal]):
+        await callback.answer("⚠️ Параметри втрачені, почни спочатку", show_alert=True)
+        await generator_start(callback, state)
+        return
+
+    await generate_and_send_focus(callback, state, muscle_groups, equipment, level, hardcore, goal)
+
+
 
 
 @router.callback_query(F.data == "regen_program")
