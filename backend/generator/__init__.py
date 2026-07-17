@@ -34,8 +34,11 @@ from .volume import filter_by_difficulty, get_sets_reps, MAX_DIFFICULTY_BY_LEVEL
 from .recovery import get_fatigue_score, is_axial
 from .validator import validate_program
 from .focus import generate_focus_workout, format_focus_workout, FOCUS_GROUP_LABELS, HARDCORE_TIERS
+from .order import order_exercises
+from .primary import select_primary_lift
+from .intent import classify_intent
 
-all = [
+__all__ = [
     "generate_program",
     "generate_optimized_program",
     "format_program",
@@ -59,6 +62,9 @@ all = [
     "format_focus_workout",
     "FOCUS_GROUP_LABELS",
     "HARDCORE_TIERS",
+    "order_exercises",
+    "select_primary_lift",
+    "classify_intent",
 ]
 
 

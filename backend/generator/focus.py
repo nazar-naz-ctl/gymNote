@@ -95,6 +95,8 @@ def generate_focus_workout(muscle_groups: list, equipment: list, level: int, har
             for ex in found:
                 ex["sets"] = sets
                 ex["reps"] = reps
+                from .intent import classify_intent
+                ex["intent"] = classify_intent(ex_type, reps)
                 ex["ex_type"] = ex_type
                 ex["_group"] = muscle_group
                 sets_by_real_muscle[real_muscle(muscle_group)] += sets
@@ -112,6 +114,11 @@ def generate_focus_workout(muscle_groups: list, equipment: list, level: int, har
         for ex in exercises:
             if real_muscle(ex["_group"]) == group_key:
                 ex["sets"] = max(1, round(ex["sets"] * factor))
+
+    from .order import order_exercises
+    from .primary import select_primary_lift
+    exercises = order_exercises(exercises)
+    select_primary_lift(exercises)
 
     if hardcore >= 3:
         from .engine import build_supersets
@@ -177,7 +184,8 @@ def format_focus_workout(day: dict, muscle_groups: list, hardcore: int, equipmen
             i += 2
             continue
 
-        text += f"• {ex['name']} — {ex['sets']}×{ex['reps']}\n"
+        marker = "🎯 " if ex.get("is_primary") else "• "
+        text += f"{marker}{ex['name']} — {ex['sets']}×{ex['reps']}\n"
         i += 1
 
     if not exs:

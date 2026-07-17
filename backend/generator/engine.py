@@ -16,6 +16,9 @@ from .volume import get_sets_reps, calculate_weekly_volume, calculate_scale_fact
 from .exercise_selector import find_exercises
 from .recovery import is_axial, calculate_axial_dampening
 from .validator import validate_program
+from .order import order_exercises
+from .primary import select_primary_lift
+from .intent import classify_intent
 
 
 # ══════════════════════════════════════════════════════
@@ -185,10 +188,14 @@ def generate_program(location: str, equipment: list, goal: str, level: int, days
                     ex_sets = max(1, round(sets * axial_factor_today))
                 ex["sets"] = ex_sets
                 ex["reps"] = reps
+                ex["intent"] = classify_intent(ex_type, reps)
                 ex["ex_type"] = ex_type
                 ex["_group"] = muscle_group
 
             day_exercises.extend(found)
+
+        day_exercises = order_exercises(day_exercises)
+        select_primary_lift(day_exercises)
 
         if level in (3, 4):
             day_exercises = build_supersets(day_exercises)
@@ -342,7 +349,8 @@ def format_program(program: dict, goal: str, level: int, days: int, equipment: l
                     i += 2
                     continue
 
-                day_text += f"• {ex['name']} — {ex['sets']}×{ex['reps']}\n"
+                marker = "🎯 " if ex.get("is_primary") else "• "
+                day_text += f"{marker}{ex['name']} — {ex['sets']}×{ex['reps']}\n"
                 i += 1
 
             if day_data.get("note"):

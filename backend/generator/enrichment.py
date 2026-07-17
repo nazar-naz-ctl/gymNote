@@ -740,176 +740,6 @@ AUTO_PATTERN_MAP = {
 }
 
 
-# Патерни для 163 вправ з резинками (додано окремо, автоматично класифіковано)
-BAND_PATTERN_MAP = {
-    'Кроки вбік (Lateral Band Walk)': 'hip_abduction',
-    'Кроки в присіді вперед-назад (Monster Walk)': 'hip_abduction',
-    'Присідання зі стрічкою (Banded Squat)': 'squat_bilateral',
-    'Присідання з широкою постановкою ніг (Sumo Squat)': 'squat_bilateral',
-    'Присідання на одній нозі з опорою ззаду (Bulgarian Split Squat)': 'lunge_unilateral',
-    'Випад вперед (Forward Lunge)': 'lunge_unilateral',
-    'Випад назад (Reverse Lunge)': 'lunge_unilateral',
-    'Випад убік (Lateral Lunge)': 'lunge_unilateral',
-    'Схрещений випад назад (Curtsy Lunge)': 'lunge_unilateral',
-    'Підйом на платформу (Step-Up)': 'lunge_unilateral',
-    'Місток сідницями (Glute Bridge)': 'hip_thrust',
-    'Підйом тазу лопатками на лаві (Hip Thrust)': 'hip_thrust',
-    'Підйом тазу на одній нозі (Single-Leg Hip Thrust)': 'hip_thrust',
-    'Розкриття колін лежачи на боці — мушля (Clamshell)': 'hip_abduction',
-    'Відведення коліна вбік рачки — собачка (Fire Hydrant)': 'hip_abduction',
-    'Мах ногою назад рачки (Donkey Kick)': 'hip_abduction',
-    'Відведення ноги вбік стоячи (Standing Hip Abduction)': 'hip_abduction',
-    'Мах ногою назад стоячи (Standing Kickback)': 'hip_abduction',
-    'Нахили з прямими ногами (Romanian Deadlift)': 'hip_hinge',
-    'Нахили корпусу вперед стоячи (Good Morning)': 'hip_hinge',
-    'Ходьба боком у напівприсіді — краб (Crab Walk)': 'mobility',
-    'Підйоми тазу зі зведеними стопами — жабка (Frog Pumps)': 'mobility',
-    'Місток з розведенням колін (Bridge Abduction)': 'hip_thrust',
-    'Місток із затримкою вгорі (Paused Glute Bridge)': 'hip_thrust',
-    'Підйом на носки (Calf Raise)': 'calf_raise',
-    'Планка зі стрибками ніг убік (Plank Jack)': 'core_stability',
-    'Бокова планка з підйомом ноги (Side Plank Hip Abduction)': 'hip_abduction',
-    'Мертва комаха — по черзі рука-нога лежачи (Dead Bug)': 'core_flexion',
-    'Повороти корпусу сидячи (Russian Twist)': 'core_rotation',
-    'Утримання стрічки на витягнутих руках (Pallof Press)': 'core_rotation',
-    'Діагональний рух дроворуб (Wood Chop)': 'core_rotation',
-    'Жим від грудей (Chest Press)': 'horizontal_press',
-    'Розведення рук перед грудьми — метелик (Chest Fly)': 'chest_fly',
-    'Тяга стрічки до пояса стоячи (Standing Row)': 'horizontal_pull',
-    'Тяга стрічки зверху вниз (Lat Pulldown)': 'vertical_pull',
-    'Тяга стрічки до обличчя (Face Pull)': 'rear_delt_fly',
-    'Підйом рук перед собою (Front Raise)': 'front_raise',
-    'Підйом рук через сторони (Lateral Raise)': 'lateral_raise',
-    'Жим над головою з розворотом кистей (Arnold Press)': 'vertical_press',
-    'Згинання рук на біцепс (Biceps Curl)': 'bicep_curl',
-    'Згинання рук нейтральним хватом — молот (Hammer Curl)': 'bicep_curl',
-    'Розгинання рук на трицепс (Triceps Extension)': 'tricep_extension',
-    'Віджимання (Push-Up)': 'horizontal_press',
-    'Жим над головою (Overhead Press)': 'vertical_press',
-    'Зовнішнє обертання плеча (External Rotation)': 'rotation',
-    'Внутрішнє обертання плеча (Internal Rotation)': 'rotation',
-    'Собака вказує — протилежні рука-нога рачки (Bird Dog)': 'core_stability',
-    'Біг в упорі лежачи — альпініст (Mountain Climber)': 'core_flexion',
-    'Повзання рачки — ведмідь (Bear Crawl)': 'core_flexion',
-    'Ходьба в присіді (Squat Walk)': 'core_flexion',
-    'Станова тяга зі стрічкою (Banded Deadlift)': 'hip_hinge_deadlift',
-    'Тяга на прямих ногах (Romanian Deadlift)': 'hip_hinge',
-    'Станова тяга з широкою постановкою ніг (Sumo Deadlift)': 'hip_hinge_deadlift',
-    'Присідання зі стрічкою спереду (Front Squat)': 'squat_bilateral',
-    'Присідання зі стрічкою на спині (Back Squat)': 'squat_bilateral',
-    'Присідання в випаді, нога ззаду на вазі (Split Squat)': 'lunge_unilateral',
-    'Випади в ходьбі (Walking Lunge)': 'lunge_unilateral',
-    'Присідання з перенесенням ваги вбік (Cossack Squat)': 'squat_unilateral',
-    'Згинання ноги лежачи (Leg Curl)': 'leg_curl',
-    'Розгинання ноги сидячи (Leg Extension)': 'leg_extension',
-    'Відведення ноги вбік (Hip Abduction)': 'hip_abduction',
-    'Приведення ноги досередини (Hip Adduction)': 'hip_adduction',
-    'Тяга в нахилі (Bent Over Row)': 'horizontal_pull',
-    'Тяга сидячи (Seated Row)': 'horizontal_pull',
-    'Тяга однією рукою (Single Arm Row)': 'horizontal_pull',
-    'Тяга з високим положенням ліктя (High Row)': 'horizontal_pull',
-    'Тяга з низьким положенням рук (Low Row)': 'horizontal_pull',
-    'Тяга зворотним хватом (Reverse Grip Row)': 'horizontal_pull',
-    'Тяга прямими руками вниз (Straight Arm Pulldown)': 'vertical_pull',
-    'Тяга зверху вниз, широчайші (Lat Pulldown)': 'vertical_pull',
-    'Підтягування з допомогою стрічки (Assisted Pull-Up)': 'vertical_pull',
-    'Тяга до обличчя (Face Pull)': 'rear_delt_fly',
-    'Розведення рук у нахилі, задня дельта (Reverse Fly)': 'rear_delt_fly',
-    'Підйоми плечей — шраги (Shrugs)': 'shrug',
-    'Жим лежачи (Bench Press)': 'horizontal_press',
-    'Жим під кутом вгору (Incline Chest Press)': 'incline_press',
-    'Жим під кутом вниз (Decline Chest Press)': 'decline_press',
-    'Розведення рук лежачи — метелик (Chest Fly)': 'chest_fly',
-    'Жим від грудей однією рукою (Single Arm Chest Press)': 'horizontal_press',
-    'Жим над головою з поштовхом ніг (Push Press)': 'vertical_press',
-    'Підйом рук назад, задня дельта (Rear Delt Raise)': 'rear_delt_fly',
-    'Жим Арнольда (Arnold Press)': 'vertical_press',
-    'Тяга до підборіддя (Upright Row)': 'upright_row',
-    'Згинання на біцепс (Biceps Curl)': 'bicep_curl',
-    'Згинання молот (Hammer Curl)': 'bicep_curl',
-    'Згинання зворотним хватом (Reverse Curl)': 'bicep_curl',
-    'Згинання з упором ліктя (Concentration Curl)': 'bicep_curl',
-    'Розгинання рук вниз на трицепс (Triceps Pushdown)': 'tricep_extension',
-    'Розгинання рук на трицепс над головою (Overhead Triceps Extension)': 'tricep_extension',
-    'Французький жим (French Press)': 'tricep_extension',
-    'Розгинання руки назад на трицепс (Kickback)': 'tricep_extension',
-    'Жим вузьким хватом (Close Grip Press)': 'tricep_extension',
-    'Антиротаційне утримання в русі (Pallof Press)': 'core_rotation',
-    'Антиротаційне утримання статично (Pallof Hold)': 'core_rotation',
-    'Дроворуб (Wood Chop)': 'core_rotation',
-    'Російський твіст (Russian Twist)': 'core_rotation',
-    'Скручування стоячи (Standing Crunch)': 'core_flexion',
-    'Перенесення вантажу в руках — фермерська прогулянка (Farmer Carry)': 'carry',
-    'Перенесення вантажу над головою (Overhead Carry)': 'carry',
-    'Нахили корпусу вперед (Good Morning)': 'hip_hinge',
-    'Підйом тазу лежачи (Hip Thrust)': 'hip_thrust',
-    'Підйом руки по діагоналі (Scaption)': 'rear_delt_fly',
-    'Підйом прямої руки вперед (Shoulder Flexion)': 'rear_delt_fly',
-    'Підйом прямої руки вбік (Shoulder Abduction)': 'rear_delt_fly',
-    'Підйом рук у формі літери Y (Y Raise)': 'rear_delt_fly',
-    'Підйом рук у формі літери T (T Raise)': 'rear_delt_fly',
-    'Підйом рук у формі літери W (W Raise)': 'rear_delt_fly',
-    'Ковзання руками по стіні (Wall Slide)': 'rear_delt_fly',
-    'Сніговий ангел біля стіни (Wall Angel)': 'rear_delt_fly',
-    'Виштовхування руки вперед (Serratus Punch)': 'rear_delt_fly',
-    'Зведення лопаток (Scapular Retraction)': 'rear_delt_fly',
-    'Розведення рук перед собою (Pull Apart)': 'rear_delt_fly',
-    'Згинання кисті (Wrist Flexion)': 'forearm',
-    'Розгинання кисті (Wrist Extension)': 'forearm',
-    'Розворот передпліччя долонею вгору (Supination)': 'forearm',
-    'Розворот передпліччя долонею вниз (Pronation)': 'forearm',
-    'Розгинання пальців (Finger Extension)': 'forearm',
-    'Розгинання великого пальця (Thumb Extension)': 'forearm',
-    'Відхилення кисті у бік великого пальця (Radial Deviation)': 'forearm',
-    'Відхилення кисті у бік мізинця (Ulnar Deviation)': 'forearm',
-    'Підйом стопи на себе (Dorsiflexion)': 'mobility',
-    'Витягування стопи від себе (Plantar Flexion)': 'mobility',
-    'Розворот стопи назовні (Eversion)': 'mobility',
-    'Розворот стопи всередину (Inversion)': 'mobility',
-    'Довиведення коліна в повне випрямлення (Terminal Knee Extension)': 'mobility',
-    'Підйом прямої ноги лежачи (Straight Leg Raise)': 'mobility',
-    'Ковзання пʼяткою лежачи (Heel Slide)': 'mobility',
-    'Напруження мʼяза стегна без руху (Quad Set)': 'mobility',
-    'Напруження сідничного мʼяза без руху (Glute Set)': 'mobility',
-    'Приведення ноги стоячи (Standing Hip Adduction)': 'hip_adduction',
-    'Підйом коліна вперед стоячи (Standing Hip Flexion)': 'hip_abduction',
-    'Відведення ноги назад стоячи (Standing Hip Extension)': 'hip_abduction',
-    'Собака вказує (Bird Dog)': 'core_stability',
-    'Мертва комаха (Dead Bug)': 'core_flexion',
-    'Поворот корпусу стоячи (Standing Rotation)': 'core_rotation',
-    'Поворот корпусу вбік (Side Rotation)': 'core_rotation',
-    'Утримання рівноваги з піднятим коліном (March Hold)': 'core_stability',
-    'Мушля — розкриття колін лежачи на боці (Clamshell)': 'hip_abduction',
-    'Нахил голови вбік з опором (Neck Lateral Resistance)': 'neck',
-    'Нахил голови вперед з опором (Neck Flexion Resistance)': 'neck',
-    'Нахил голови назад з опором (Neck Extension Resistance)': 'neck',
-    'Перенесення стрічки над головою назад (Shoulder Pass Through)': 'mobility',
-    'Викрутки прямими руками (Dislocations)': 'mobility',
-    'Кроки вбік (Lateral Walk)': 'hip_abduction',
-    'Кругові рухи стегном (Hip Circle)': 'mobility',
-    'Розкриття тазостегнового суглоба (Hip Opener)': 'mobility',
-    'Розробка гомілковостопа (Ankle Mobility)': 'mobility',
-    'Присід з жимом над головою (Squat to Press)': 'squat_bilateral',
-    "Комплексна розтяжка найкраща у світі (World's Greatest Stretch)": 'mobility',
-    'Кішка-корова — прогини спини рачки (Cat-Cow)': 'mobility',
-    'Ротація грудного відділу хребта (Thoracic Rotation)': 'mobility',
-    'Розтяжка плечей тягою стрічки вниз (Band Pull Down Stretch)': 'mobility',
-    'Розтяжка задньої поверхні стегна (Hamstring Stretch)': 'mobility',
-    'Розкриття грудної клітки (Chest Opener)': 'mobility',
-    'Розкриття плечей (Shoulder Opener)': 'mobility',
-    'Витягування рук вгору (Overhead Reach)': 'mobility',
-    'Динамічний випад (Dynamic Lunge)': 'lunge_unilateral',
-    'Динамічне присідання (Dynamic Squat)': 'squat_bilateral',
-    'Активація сідничних мʼязів (Glute Activation)': 'hip_thrust',
-    'Активація лопаток (Scapular Activation)': 'rear_delt_fly',
-    'Розминка обертання плеча назовні (External Rotation Warm-Up)': 'rotation',
-    'Розминка обертання плеча всередину (Internal Rotation Warm-Up)': 'rotation',
-    'Розробка литкового мʼяза (Calf Mobility)': 'calf_raise',
-}
-AUTO_PATTERN_MAP.update(BAND_PATTERN_MAP)
-
-
-
 def _seed_get_pattern(name: str) -> str | None:
     """Ручний PATTERN_MAP має пріоритет над автоматичним AUTO_PATTERN_MAP.
     Використовується ЛИШЕ для первинного заповнення бази — деінде в
@@ -1087,6 +917,66 @@ def compute_recovery_days(fatigue: int) -> int:
         return 2
     return 1
 
+# ══════════════════════════════════════════════════════
+# CNS COST — окрема від Fatigue величина нервового навантаження
+# ══════════════════════════════════════════════════════
+# Fatigue Score змішує м'язову і нервову втому в одне число. Але
+# важкий жим лежачи (Fatigue=4, м'язово важкий) насправді набагато
+# менш нервово-виснажливий, ніж важке присідання чи станова тяга
+# (теж може мати Fatigue=4-5) — тому CNS Cost рахується окремо.
+#
+# Найвище — важкі осьові/тазостегнові рухи (станова, присідання,
+# олімпійські рухи), а не будь-яка "важка" вправа взагалі.
+CNS_COST_BY_PATTERN = {
+    # Максимальне — важка вага на багатосуглобові осьові рухи
+    "hip_hinge_deadlift": 5,
+    "squat_bilateral": 5,
+    "olympic_pull": 5,
+    "olympic_press": 5,
+
+    # Високе — вибухові/асиметричні варіації тих самих рухів
+    "squat_explosive": 4,
+    "vertical_pull_explosive": 4,
+    "squat_unilateral": 4,
+    "lunge_unilateral": 4,
+    "hip_hinge": 3,
+
+    # Середнє — важкі, але не осьові багатосуглобові рухи
+    "squat_machine": 3,
+    "vertical_press": 3,
+    "hip_thrust": 3,
+    "carry": 3,
+
+    # Низьке — верхньотілесні жими/тяги (м'язово важкі, нервово ні)
+    "horizontal_press": 2,
+    "incline_press": 2,
+    "decline_press": 2,
+    "horizontal_pull": 2,
+    "vertical_pull": 2,
+
+    # Мінімальне — ізоляція, стабілізація
+    "bicep_curl": 1,
+    "bicep_curl_isolated": 1,
+    "tricep_extension": 1,
+    "lateral_raise": 1,
+    "front_raise": 1,
+    "rear_delt_fly": 1,
+    "chest_fly": 1,
+    "leg_curl": 1,
+    "leg_extension": 1,
+    "calf_raise": 1,
+    "core_flexion": 1,
+    "core_stability": 1,
+    "core_rotation": 1,
+    "mobility": 1,
+}
+DEFAULT_CNS_COST = 2
+
+
+def compute_cns_cost(pattern: str) -> int:
+    return CNS_COST_BY_PATTERN.get(pattern, DEFAULT_CNS_COST)
+
+
 def enrich_exercise(ex: dict) -> dict:
     """Мутує вправу на місці, додаючи 9 полів метаданих (Database 2.0 + 2.1).
     Повертає той самий dict."""
@@ -1102,6 +992,7 @@ def enrich_exercise(ex: dict) -> dict:
     ex["skill"] = compute_skill(ex, pattern)
     ex["stimulus"] = compute_stimulus(ex, pattern)          # 2.1: тепер число 1-10
     ex["recovery_days"] = compute_recovery_days(fatigue)     # 2.1: нове поле
+    ex["cns_cost"] = compute_cns_cost(pattern)                # 2.2: нове поле
     return ex
 
 
