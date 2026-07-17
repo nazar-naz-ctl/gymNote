@@ -37,8 +37,9 @@ from .focus import generate_focus_workout, format_focus_workout, FOCUS_GROUP_LAB
 from .order import order_exercises
 from .primary import select_primary_lift
 from .intent import classify_intent
+from .priority import boost_volume_factors, priority_score_bonus
 
-__all__ = [
+all = [
     "generate_program",
     "generate_optimized_program",
     "format_program",
@@ -65,6 +66,8 @@ __all__ = [
     "order_exercises",
     "select_primary_lift",
     "classify_intent",
+    "boost_volume_factors",
+    "priority_score_bonus",
 ]
 
 

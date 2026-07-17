@@ -12,7 +12,7 @@ handlers/generator.py.
 """
 
 from .split import SPLITS, DAY_STRUCTURES
-from .volume import get_sets_reps, calculate_weekly_volume, calculate_scale_factors, apply_scale_to_sets
+from .volume import get_sets_reps, calculate_weekly_volume, calculate_scale_factors, apply_scale_to_sets, real_muscle
 from .exercise_selector import find_exercises
 from .recovery import is_axial, calculate_axial_dampening
 from .validator import validate_program
@@ -99,7 +99,10 @@ def program_from_storable(data: list) -> dict:
 # ГОЛОВНИЙ ОРКЕСТРАТОР
 # ══════════════════════════════════════════════════════
 
-def generate_program(location: str, equipment: list, goal: str, level: int, days: int) -> dict:
+def generate_program(
+    location: str, equipment: list, goal: str, level: int, days: int,
+    priority_muscle: str = None, priority_pattern: str = None,
+) -> dict:
     # Власна вага завжди доступна незалежно від локації/обладнання —
     # можна додати вправи "на добивання"/памп навіть у залі чи на
     # вулиці з інвентарем. Це робить програми гнучкішими і рятує
@@ -115,6 +118,11 @@ def generate_program(location: str, equipment: list, goal: str, level: int, days
     # Рахуємо тижневий обсяг ОДИН РАЗ, до генерації днів (Volume Engine)
     weekly_volume = calculate_weekly_volume(day_keys, goal, level)
     volume_factors = calculate_scale_factors(weekly_volume)
+
+    # Muscle Priority Engine: пріоритетна група отримує бонус обсягу
+    if priority_muscle:
+        from .priority import boost_volume_factors
+        volume_factors = boost_volume_factors(volume_factors, priority_muscle, real_muscle)
 
     # Weekly Fatigue Manager: якщо два дні поспіль мають високе осьове
     # навантаження — трохи зменшуємо підходи осьових вправ другого дня
@@ -174,6 +182,8 @@ def generate_program(location: str, equipment: list, goal: str, level: int, days
                     used_patterns=used_patterns,
                     avoid_today=day_used_names,
                     family_counts=family_counts,
+                    priority_muscle=priority_muscle,
+                    priority_pattern=priority_pattern,
                 )
                 day_used_names.update(e["name"] for e in found)
 
@@ -195,7 +205,7 @@ def generate_program(location: str, equipment: list, goal: str, level: int, days
             day_exercises.extend(found)
 
         day_exercises = order_exercises(day_exercises)
-        select_primary_lift(day_exercises)
+        select_primary_lift(day_exercises, priority_muscle=priority_muscle, priority_pattern=priority_pattern)
 
         if level in (3, 4):
             day_exercises = build_supersets(day_exercises)
@@ -226,6 +236,8 @@ def generate_optimized_program(
     location: str, equipment: list, goal: str, level: int, days: int,
     min_score: int = MIN_ACCEPTABLE_SCORE,
     max_attempts: int = MAX_REGENERATION_ATTEMPTS,
+    priority_muscle: str = None,
+    priority_pattern: str = None,
 ) -> tuple:
     """
     Генерує програму, перевіряє Validator-ом, і за потреби
@@ -245,7 +257,7 @@ def generate_optimized_program(
     best_report = None
 
     for attempt in range(1, max_attempts + 1):
-        program = generate_program(location, equipment, goal, level, days)
+        program = generate_program(location, equipment, goal, level, days, priority_muscle, priority_pattern)
         report = validate_program(program, level=level, equipment=equipment)
 
         if best_report is None or report["score"] > best_report["score"]:

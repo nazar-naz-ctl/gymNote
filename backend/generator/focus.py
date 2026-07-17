@@ -49,10 +49,15 @@ HARDCORE_TIERS = {
 }
 
 
-def generate_focus_workout(muscle_groups: list, equipment: list, level: int, hardcore: int, goal: str = "маса") -> dict:
+def generate_focus_workout(muscle_groups: list, equipment: list, level: int, hardcore: int, goal: str = "маса", priority_pattern: str = None) -> dict:
     """
     muscle_groups — список пунктів меню (ключі FOCUS_GROUP_LABELS),
     напр. ["біцепс", "трицепс"].
+    priority_pattern — опційний тонший акцент УСЕРЕДИНІ обраних груп
+    (напр. "incline_press" для "верх грудей", коли muscle_groups
+    містить "груди"). У Focus Workout сама группа вже й так у
+    пріоритеті (це весь сенс фічі) — priority_pattern лише додає
+    точності всередині неї.
     Повертає один "день" у тому самому форматі, що й звичайні дні
     generate_program: {"name": ..., "exercises": [...], "note": ""}.
     """
@@ -87,6 +92,8 @@ def generate_focus_workout(muscle_groups: list, equipment: list, level: int, har
                 used_patterns=used_patterns,
                 avoid_today=day_used_names,
                 family_counts=family_counts,
+                priority_muscle=muscle_group,
+                priority_pattern=priority_pattern,
             )
             day_used_names.update(e["name"] for e in found)
 
@@ -118,7 +125,11 @@ def generate_focus_workout(muscle_groups: list, equipment: list, level: int, har
     from .order import order_exercises
     from .primary import select_primary_lift
     exercises = order_exercises(exercises)
-    select_primary_lift(exercises)
+    # Перша обрана користувачем група — розумний дефолт пріоритету
+    # для Primary Lift, коли обрано кілька груп одразу (напр.
+    # Біцепс+Трицепс — головною логічно стає вправа на Біцепс,
+    # бо його обрали першим)
+    select_primary_lift(exercises, priority_muscle=expanded_groups[0] if expanded_groups else None)
 
     if hardcore >= 3:
         from .engine import build_supersets

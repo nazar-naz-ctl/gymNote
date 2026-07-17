@@ -51,7 +51,10 @@ GOAL_TO_STIMULUS_TARGET = {
 }
 
 
-def get_exercise_score(ex: dict, level: int, ex_type: str, goal: str = None) -> float:
+def get_exercise_score(
+    ex: dict, level: int, ex_type: str, goal: str = None,
+    muscle_group: str = None, priority_muscle: str = None, priority_pattern: str = None,
+) -> float:
     score = 0.0
 
     # 1. Вільна вага краще за тренажер
@@ -75,22 +78,35 @@ def get_exercise_score(ex: dict, level: int, ex_type: str, goal: str = None) -> 
         score += 1.5
 
     # 5. Stimulus вправи відповідає цілі (поле з бази, 2.1 — числова
-    #    шкала 1-10, бонус за БЛИЗЬКІСТЬ до цільового значення, а не
-    #    точний збіг категорії, як було в 2.0)
+    #    шкала 1-10, бонус за близькістю до цільового значення)
     stimulus = ex.get("stimulus")
     target = GOAL_TO_STIMULUS_TARGET.get(goal) if goal else None
     if stimulus is not None and target is not None:
         diff = abs(stimulus - target)
         score += max(0.0, 1.5 - diff * 0.25)
 
+    # 6. Muscle Priority Engine — бонус за співпадіння обраного
+    #    користувачем акценту (групи і, опційно, патерну всередині
+    #    групи, напр. incline_press для "верх грудей")
+    if priority_muscle:
+        from .priority import priority_score_bonus
+        score += priority_score_bonus(muscle_group, ex.get("movement_pattern"), priority_muscle, priority_pattern)
+
     return score
 
 
-def _score_weighted_shuffle(exercises: list, level: int, ex_type: str, goal: str = None, jitter: float = 1.5) -> list:
+def _score_weighted_shuffle(
+    exercises: list, level: int, ex_type: str, goal: str = None, jitter: float = 1.5,
+    muscle_group: str = None, priority_muscle: str = None, priority_pattern: str = None,
+) -> list:
     """Сортує список вправ за Exercise Score + випадковий шум — кращі
     вправи частіше опиняються попереду, але не гарантовано завжди."""
     scored = [
-        (get_exercise_score(ex, level, ex_type, goal) + random.uniform(-jitter, jitter), ex)
+        (
+            get_exercise_score(ex, level, ex_type, goal, muscle_group, priority_muscle, priority_pattern)
+            + random.uniform(-jitter, jitter),
+            ex,
+        )
         for ex in exercises
     ]
     scored.sort(key=lambda t: t[0], reverse=True)
@@ -330,6 +346,8 @@ def find_exercises(
     used_patterns: set = None,
     avoid_today: set = None,
     family_counts: dict = None,
+    priority_muscle: str = None,
+    priority_pattern: str = None,
 ) -> list:
     """
     Знаходить вправи для конкретної групи м'язів.
@@ -395,7 +413,7 @@ def find_exercises(
             found = filter_by_difficulty(found, level)
             found = [e for e in found if _primary_match(e) and _is_working_type(e)]
 
-        found = _score_weighted_shuffle(found, level, ex_type, goal)
+        found = _score_weighted_shuffle(found, level, ex_type, goal, muscle_group=muscle_group, priority_muscle=priority_muscle, priority_pattern=priority_pattern)
 
         # Прохід 1: звичайний підбір з блокуванням used_names, патерну
         # і родини патернів (Compatibility Engine — напр. не більше
@@ -430,7 +448,7 @@ def find_exercises(
             wide_found = get_exercises(equipment=equipment, level=level)
             wide_found = filter_by_difficulty(wide_found, level)
             wide_found = [e for e in wide_found if _primary_match(e) and _is_working_type(e)]
-            wide_found = _score_weighted_shuffle(wide_found, level, ex_type, goal)
+            wide_found = _score_weighted_shuffle(wide_found, level, ex_type, goal, muscle_group=muscle_group, priority_muscle=priority_muscle, priority_pattern=priority_pattern)
             for ex in wide_found:
                 if ex["name"] in used_names or len(results) >= count:
                     continue
