@@ -362,7 +362,22 @@ def find_exercises(
     else:
         priority_list = BASE_EXERCISES.get(muscle_group, []) + ISOLATION_EXERCISES.get(muscle_group, [])
 
-    for name in random.sample(priority_list, min(len(priority_list), len(priority_list))):
+    # Muscle Priority Engine: якщо задано priority_pattern для ЦІЄЇ
+    # групи — імена, що відповідають патерну, йдуть ПЕРШИМИ навіть
+    # тут, у Проході 0. Без цього Прохід 0 міг заповнити весь слот
+    # (і вийти з функції на "return results" нижче) звичайними
+    # вправами ще ДО того, як пріоритет патерну взагалі встиг би
+    # спрацювати десь далі в каскаді.
+    if priority_pattern and muscle_group == priority_muscle:
+        matching_names = [n for n in priority_list if get_pattern(n) == priority_pattern]
+        other_names = [n for n in priority_list if n not in matching_names]
+        random.shuffle(matching_names)
+        random.shuffle(other_names)
+        priority_list = matching_names + other_names
+    else:
+        priority_list = random.sample(priority_list, len(priority_list))
+
+    for name in priority_list:
         if name in used_names:
             continue
         found = get_exercises(
@@ -412,6 +427,21 @@ def find_exercises(
             found = get_exercises(equipment=equipment)
             found = filter_by_difficulty(found, level)
             found = [e for e in found if _primary_match(e) and _is_working_type(e)]
+
+        # Muscle Priority Engine: якщо задано priority_pattern для
+        # ЦІЄЇ групи (напр. incline_press для "верх грудей") — твердий
+        # пріоритет, а не м'який бонус. М'який бонус (у Score Engine
+        # нижче) виявився ненадійним для base-слоту: натуральна різниця
+        # Fatigue/Skill/SpineLoad між двома вправами тієї самої групи
+        # часто переважує +2 бали бонусу, і акцент користувача програє
+        # конкуренцію за місце в слоті — той самий баг, що вже був
+        # виправлений для Primary Lift, тепер виправлений тут само,
+        # на рівень раніше (щоб потрібна вправа взагалі потрапила в
+        # base, а не лише в assist/isolation).
+        if priority_pattern and muscle_group == priority_muscle:
+            pattern_matched = [e for e in found if e.get("movement_pattern") == priority_pattern]
+            if pattern_matched:
+                found = pattern_matched
 
         found = _score_weighted_shuffle(found, level, ex_type, goal, muscle_group=muscle_group, priority_muscle=priority_muscle, priority_pattern=priority_pattern)
 

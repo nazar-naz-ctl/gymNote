@@ -129,7 +129,7 @@ def generate_focus_workout(muscle_groups: list, equipment: list, level: int, har
     # для Primary Lift, коли обрано кілька груп одразу (напр.
     # Біцепс+Трицепс — головною логічно стає вправа на Біцепс,
     # бо його обрали першим)
-    select_primary_lift(exercises, priority_muscle=expanded_groups[0] if expanded_groups else None)
+    select_primary_lift(exercises, priority_muscle=expanded_groups[0] if expanded_groups else None, priority_pattern=priority_pattern)
 
     if hardcore >= 3:
         from .engine import build_supersets

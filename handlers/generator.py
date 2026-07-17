@@ -31,6 +31,7 @@ class GeneratorStates(StatesGroup):
     level     = State()
     days      = State()
     focus_muscles  = State()
+    focus_emphasis = State()
     focus_hardcore = State()
 
 
@@ -436,6 +437,24 @@ async def generator_focus_muscles_done(callback: CallbackQuery, state: FSMContex
         await callback.answer("⚠️ Обери хоча б одну групу м'язів", show_alert=True)
         return
 
+    # Muscle Priority Engine: перша обрана група — пріоритетна за замовчуванням
+    await state.update_data(priority_muscle=selected[0], priority_pattern=None)
+
+    # Для грудей — додатковий екран тонкого акценту (верх/низ/загалом)
+    if "груди" in selected:
+        await state.set_state(GeneratorStates.focus_emphasis)
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬆️ Верх грудей", callback_data="femph_incline")],
+            [InlineKeyboardButton(text="⬇️ Низ грудей", callback_data="femph_decline")],
+            [InlineKeyboardButton(text="◻️ Загалом (без акценту)", callback_data="femph_skip")],
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="main_menu")],
+        ])
+        await callback.message.edit_text(
+            "💪 Ти обрав <b>Груди</b> — хочеш конкретний акцент?",
+            reply_markup=kb,
+        )
+        return
+
     await state.set_state(GeneratorStates.focus_hardcore)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🟢 Просте", callback_data="fh_1")],
@@ -451,10 +470,38 @@ async def generator_focus_muscles_done(callback: CallbackQuery, state: FSMContex
     )
 
 
-async def generate_and_send_focus(callback: CallbackQuery, state: FSMContext, muscle_groups, equipment, level, hardcore, goal):
+@router.callback_query(GeneratorStates.focus_emphasis, F.data.startswith("femph_"))
+async def generator_focus_emphasis(callback: CallbackQuery, state: FSMContext):
+    pattern_map = {
+        "femph_incline": "incline_press",
+        "femph_decline": "decline_press",
+        "femph_skip": None,
+    }
+    priority_pattern = pattern_map.get(callback.data)
+    await state.update_data(priority_pattern=priority_pattern)
+
+    data = await state.get_data()
+    selected = data.get("selected_focus_groups", [])
+
+    await state.set_state(GeneratorStates.focus_hardcore)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🟢 Просте", callback_data="fh_1")],
+        [InlineKeyboardButton(text="🟡 Середнє", callback_data="fh_2")],
+        [InlineKeyboardButton(text="🟠 Важке", callback_data="fh_3")],
+        [InlineKeyboardButton(text="🔴 Хардкор", callback_data="fh_4")],
+        [InlineKeyboardButton(text="❌ Скасувати", callback_data="main_menu")],
+    ])
+    groups_text = ", ".join(FOCUS_GROUP_LABELS.get(g, g) for g in selected)
+    await callback.message.edit_text(
+        f"🎯 Групи: <b>{groups_text}</b>\n\nОбери рівень інтенсивності:",
+        reply_markup=kb,
+    )
+
+
+async def generate_and_send_focus(callback: CallbackQuery, state: FSMContext, muscle_groups, equipment, level, hardcore, goal, priority_pattern=None):
     await callback.message.edit_text("⏳ Генерую тренування...")
 
-    day = generate_focus_workout(muscle_groups, equipment, level, hardcore, goal)
+    day = generate_focus_workout(muscle_groups, equipment, level, hardcore, goal, priority_pattern=priority_pattern)
 
     if not day["exercises"]:
         await callback.message.edit_text(
@@ -473,6 +520,7 @@ async def generate_and_send_focus(callback: CallbackQuery, state: FSMContext, mu
         last_focus_level=level,
         last_focus_hardcore=hardcore,
         last_focus_goal=goal,
+        last_focus_priority_pattern=priority_pattern,
     )
 
     text = format_focus_workout(day, muscle_groups, hardcore, equipment)
@@ -493,9 +541,10 @@ async def generator_focus_hardcore(callback: CallbackQuery, state: FSMContext):
     equipment = data.get("selected_equipment", [])
     level = data.get("level", 2)
     goal = data.get("goal", "маса")
+    priority_pattern = data.get("priority_pattern")
 
     await state.set_state(None)
-    await generate_and_send_focus(callback, state, muscle_groups, equipment, level, hardcore, goal)
+    await generate_and_send_focus(callback, state, muscle_groups, equipment, level, hardcore, goal, priority_pattern)
 
 
 @router.callback_query(F.data == "focus_regen")
@@ -512,7 +561,8 @@ async def focus_regen(callback: CallbackQuery, state: FSMContext):
         await generator_start(callback, state)
         return
 
-    await generate_and_send_focus(callback, state, muscle_groups, equipment, level, hardcore, goal)
+    priority_pattern = data.get("last_focus_priority_pattern")
+    await generate_and_send_focus(callback, state, muscle_groups, equipment, level, hardcore, goal, priority_pattern)
 
 
 

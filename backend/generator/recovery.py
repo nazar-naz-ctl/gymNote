@@ -97,10 +97,20 @@ def calculate_axial_dampening(day_keys: list, goal: str, level: int, threshold: 
 PATTERN_FAMILIES = {
     "hip_hinge_deadlift": "hip_hinge_family",
     "hip_hinge": "hip_hinge_family",
+
+    # Жимові кути грудей — біомеханічно дуже схожі рухи (та сама
+    # м'язова робота під різним кутом). Без цієї родини генератор міг
+    # узяти, напр., "Жим штанги вниз головою" ТА "Жим гантелей вниз
+    # головою" в одне тренування — знайдено на реальному тестуванні
+    # Focus Workout "Груди".
+    "horizontal_press": "chest_press_family",
+    "incline_press": "chest_press_family",
+    "decline_press": "chest_press_family",
 }
 
 FAMILY_CAP = {
     "hip_hinge_family": 2,
+    "chest_press_family": 2,
 }
 
 
