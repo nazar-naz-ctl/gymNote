@@ -107,7 +107,14 @@ def calculate_weekly_volume(day_keys: list, goal: str, level: int) -> dict:
 
 def calculate_scale_factors(volume: dict) -> dict:
     """Для груп, що перевищують MRV — коефіцієнт зменшення (0-1).
-    Групи нижче MEV поки не займаємо (factor=1) — це окрема задача."""
+    Групи нижче MEV поки не займаємо (factor=1) — це окрема задача.
+
+    Це "м'який", наближений механізм — застосовується через
+    apply_scale_to_sets() ще ПІД ЧАС генерації (одна вправа за
+    раз, до того як відомо, скільки всього вправ цієї групи
+    буде за тиждень). Для гарантованого дотримання MRV
+    (жорсткий ліміт) використовується окремий фінальний прохід —
+    дивись enforce_mrv() нижче."""
     factors = {}
     for group, total in volume.items():
         lm = VOLUME_LANDMARKS.get(group)
@@ -124,3 +131,59 @@ def apply_scale_to_sets(base_sets: int, muscle_group: str, factors: dict) -> int
     key = real_muscle(muscle_group)
     factor = factors.get(key, 1.0)
     return max(1, round(base_sets * factor))
+
+
+# ══════════════════════════════════════════════════════
+# MRV ENFORCEMENT — фінальна, точна гарантія ліміту
+# ══════════════════════════════════════════════════════
+# calculate_scale_factors + apply_scale_to_sets — наближений
+# механізм: round() застосовується до КОЖНОЇ вправи окремо, в
+# момент її генерації, без знання підсумкової суми за весь
+# тиждень/тренування. Коли реальне перевищення дрібне відносно
+# кількості вправ у групі (напр. треба зняти 1 сет із 21),
+# round() повертає ту саму кількість на кожній вправі — і ліміт
+# мовчки ігнорується.
+#
+# enforce_mrv() — жорсткий, точний прохід ПІСЛЯ повної генерації
+# (усіх днів тижня разом, або одного фокус-тренування). Рахує
+# РЕАЛЬНУ сумарну кількість сетів на групу і, якщо є перевищення,
+# знімає його по одному цілому сету за раз із конкретних вправ,
+# у порядку пріоритету зняття: isolation → assist → base
+# (найменш специфічні для конкретики групи вправи ріжемо
+# першими, основні базові — в останню чергу).
+
+EX_TYPE_CUT_PRIORITY = {"isolation": 0, "assist": 1, "base": 2}
+
+
+def enforce_mrv(exercises: list) -> None:
+    """Мутує ex["sets"] на місці. `exercises` — плаский список
+    словників-вправ з уже проставленими 'sets', '_group', 'ex_type'.
+    Викликач сам вирішує, який зріз передати: всі дні тижня разом
+    (generate_program) чи одне фокус-тренування (generate_focus_workout)."""
+    sets_by_group = {}
+    for ex in exercises:
+        group = ex.get("_group")
+        if not group:
+            continue
+        key = real_muscle(group)
+        sets_by_group[key] = sets_by_group.get(key, 0) + ex.get("sets", 0)
+
+    for group_key, total in sets_by_group.items():
+        landmarks = VOLUME_LANDMARKS.get(group_key)
+        if not landmarks or total <= landmarks["MRV"]:
+            continue
+
+        excess = total - landmarks["MRV"]
+        group_exercises = [ex for ex in exercises if real_muscle(ex.get("_group", "")) == group_key]
+        group_exercises.sort(key=lambda e: EX_TYPE_CUT_PRIORITY.get(e.get("ex_type"), 1))
+
+        idx = 0
+        steps = 0
+        safety_cap = len(group_exercises) * 30 + 100  # запобіжник від зависання
+        while excess > 0 and group_exercises and steps < safety_cap:
+            ex = group_exercises[idx % len(group_exercises)]
+            if ex["sets"] > 1:
+                ex["sets"] -= 1
+                excess -= 1
+            idx += 1
+            steps += 1

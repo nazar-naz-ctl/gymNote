@@ -11,10 +11,8 @@ Selection Engine (find_exercises — той самий Compatibility/Score
 Engine), Volume Engine (щоб навіть Хардкор не переліз за MRV).
 """
 
-from collections import defaultdict
-
 from .exercise_selector import find_exercises
-from .volume import VOLUME_LANDMARKS, get_sets_reps, real_muscle
+from .volume import get_sets_reps, real_muscle, enforce_mrv
 
 
 # Пункти меню, які показуємо користувачу
@@ -73,7 +71,6 @@ def generate_focus_workout(muscle_groups: list, equipment: list, level: int, har
     day_used_names = set()
 
     exercises = []
-    sets_by_real_muscle = defaultdict(int)
 
     expanded_groups = []
     for mg in muscle_groups:
@@ -106,21 +103,13 @@ def generate_focus_workout(muscle_groups: list, equipment: list, level: int, har
                 ex["intent"] = classify_intent(ex_type, reps)
                 ex["ex_type"] = ex_type
                 ex["_group"] = muscle_group
-                sets_by_real_muscle[real_muscle(muscle_group)] += sets
 
             exercises.extend(found)
 
-    # Навіть на Хардкор рівні не даємо перевищити MRV — підрізаємо
-    # пропорційно, якщо накопичилось забагато підходів на одну
-    # реальну м'язову групу.
-    for group_key, total in sets_by_real_muscle.items():
-        landmarks = VOLUME_LANDMARKS.get(group_key)
-        if not landmarks or total <= landmarks["MRV"]:
-            continue
-        factor = landmarks["MRV"] / total
-        for ex in exercises:
-            if real_muscle(ex["_group"]) == group_key:
-                ex["sets"] = max(1, round(ex["sets"] * factor))
+    # Навіть на Хардкор рівні не даємо перевищити MRV. Точний
+    # прохід (не наближений round на кожній вправі) — знімає
+    # цілі сети по одному, isolation → assist → base.
+    enforce_mrv(exercises)
 
     from .order import order_exercises
     from .primary import select_primary_lift
@@ -156,7 +145,7 @@ def format_focus_workout(day: dict, muscle_groups: list, hardcore: int, equipmen
     header = (
         f"🎯 <b>Фокус-тренування</b>\n\n"
         f"💪 Групи: {groups_text}\n"
-        f"⚡ Інтенсивність: {tier['label']}\n"
+        f"⚡️ Інтенсивність: {tier['label']}\n"
         f"🏋️ Обладнання: {', '.join(equipment)}\n"
         f"━━━━━━━━━━━━━━━━\n"
     )

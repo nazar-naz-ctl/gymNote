@@ -12,7 +12,7 @@ handlers/generator.py.
 """
 
 from .split import SPLITS, DAY_STRUCTURES
-from .volume import get_sets_reps, calculate_weekly_volume, calculate_scale_factors, apply_scale_to_sets, real_muscle
+from .volume import get_sets_reps, calculate_weekly_volume, calculate_scale_factors, apply_scale_to_sets, real_muscle, enforce_mrv
 from .exercise_selector import find_exercises
 from .recovery import is_axial, calculate_axial_dampening
 from .validator import validate_program
@@ -222,6 +222,23 @@ def generate_program(
             "note": template.get("note", ""),
         }
 
+    # MRV Enforcement — фінальний, точний прохід ПІСЛЯ генерації
+    # УСІХ днів тижня разом. calculate_scale_factors/apply_scale_to_sets
+    # вище — "м'який" механізм: коефіцієнт рахується на весь тиждень,
+    # але застосовується (з округленням) до кожної вправи окремо, в
+    # момент її генерації, ще до того як відомо скільки всього вправ
+    # цієї групи буде за тиждень. Коли реальне перевищення дрібне
+    # відносно кількості вправ — round() мовчки нічого не зрізає.
+    # Тому тут — окремий жорсткий прохід по вже готовому тижню,
+    # який рахує РЕАЛЬНУ суму сетів на групу і, якщо MRV перевищено,
+    # знімає надлишок по цілому сету за раз (isolation → assist → base).
+    all_week_exercises = [
+        ex
+        for day_data in program.values()
+        for ex in day_data["exercises"]
+    ]
+    enforce_mrv(all_week_exercises)
+
     return program
 
 
@@ -318,7 +335,7 @@ def format_program(program: dict, goal: str, level: int, days: int, equipment: l
     header = (
         f"🤖 <b>Твоя програма тренувань</b>\n\n"
         f"🎯 Ціль: {goal_names.get(goal, goal)}\n"
-        f"⚡ Рівень: {level_names.get(level, level)}\n"
+        f"⚡️ Рівень: {level_names.get(level, level)}\n"
         f"📅 Днів: {days}\n"
         f"🏋️ Обладнання: {', '.join(equipment)}\n"
         f"{score_line}"
