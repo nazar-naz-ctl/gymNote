@@ -200,7 +200,13 @@ def generate_program(
                 # важкий жим над головою два дні поспіль так само
                 # варто притлумити, як і станову тягу, навіть якщо
                 # він не "осьовий" у розумінні хребта
-                if ex.get("spine_load", 1) >= 5 or ex.get("joint_fatigue", 1) >= 4:
+                # Fatigue Engine 2.0 → 2.1: демпфуємо не лише за
+                # spine_load/joint_fatigue, а й за cns_cost — нервове
+                # навантаження окреме від навантаження на хребет/суглоби
+                # (олімпійські рухи й важкі багатосуглобові підйоми
+                # виснажують ЦНС навіть без екстремального spine_load,
+                # напр. ривок штанги vs жим лежачи з тим самим spine_load).
+                if ex.get("spine_load", 1) >= 5 or ex.get("joint_fatigue", 1) >= 4 or ex.get("cns_cost", 1) >= 4:
                     ex_sets = max(1, round(sets * axial_factor_today))
                 ex["sets"] = ex_sets
                 ex["reps"] = reps

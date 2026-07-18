@@ -1,19 +1,29 @@
 """
-Muscle Coverage Engine (Етап 1: лише оцінка)
-═══════════════════════════════════════════════
+Muscle Coverage Engine (Етап 1: лише оцінка, версія 1.1 — з вагою обсягу)
+═══════════════════════════════════════════════════════════════════════════
 Відповідає не на питання "чи вправи різні?" (це Exercise Similarity
 Engine, вже значною мірою покритий Compatibility Engine + Diversity
 Score), а на інше: "чи м'яз отримав УСІ необхідні типи стимулу за
-тиждень?".
+тиждень, і в достатньому ОБСЯЗІ?".
 
 Приклад: три різні жими на груди (Similarity Engine їх не заб'є —
 вони формально різні) все одно можуть залишити програму однобокою,
 якщо жодного разу за тиждень не було розтяжки/ізоляції (chest_fly)
 чи жиму під іншим кутом.
 
+v1.1 (обсяг): версія 1.0 рахувала лише БІНАРНУ присутність патерну
+(є/нема), незалежно від кількості сетів. Це давало хибно високий
+Coverage Score у випадках типу "верх грудей 18 сетів, низ 3 сети,
+розводка 0" — усі три патерни могли формально числитись "покритими",
+хоча реальний розподіл стимулу вкрай нерівномірний. Тепер кожен
+очікуваний патерн отримує оцінку 0.0-1.0 залежно від його частки в
+загальному обсязі групи, порівняно з "ідеальною" рівномірною часткою
+(1 / кількість очікуваних патернів groupи). Патерн з часткою на рівні
+або вище ідеальної отримує повний бал (1.0) — не карається за
+перевиконання, лише за недобір.
+
 MUSCLE_FUNCTIONS визначає очікувані "функціональні ролі" (рухові
-патерни) для кожної тренованої групи м'язів. Coverage Score = яка
-частка цих ролей реально присутня в програмі за весь тиждень.
+патерни) для кожної тренованої групи м'язів.
 
 Етап 1 (цей модуль): лише розрахунок і звіт, без автозаміни вправ.
 Автозаміна — це вже Optimization Engine 2.0, окремий, набагато
@@ -44,14 +54,16 @@ MIN_COVERAGE_FOR_PENALTY = 0.5
 def compute_muscle_coverage(program: dict) -> dict:
     """
     Для кожної тренованої за тиждень групи м'язів — які функціональні
-    ролі (патерни) реально присутні, яких бракує, і Coverage Score
-    (0.0-1.0).
+    ролі (патерни) реально присутні, скільки сетів припадає на кожну,
+    яких бракує, і зважений Coverage Score (0.0-1.0).
 
-    Повертає {група: {"covered": {...}, "missing": {...}, "score": 0.0-1.0}}
-    Групи, для яких MUSCLE_FUNCTIONS не визначено, пропускаються
-    (немає з чим порівнювати).
+    Повертає {група: {"covered": {...}, "missing": {...},
+                       "pattern_scores": {патерн: 0.0-1.0},
+                       "score": 0.0-1.0}}
+    Групи, для яких MUSCLE_FUNCTIONS не визначено, або які взагалі
+    не тренувались цього тижня, пропускаються.
     """
-    patterns_by_group = {}
+    sets_by_group_pattern = {}
 
     for day in program.values():
         for ex in day.get("exercises", []):
@@ -59,19 +71,45 @@ def compute_muscle_coverage(program: dict) -> dict:
             pattern = ex.get("movement_pattern")
             if not group or not pattern:
                 continue
-            patterns_by_group.setdefault(group, set()).add(pattern)
+            sets = ex.get("sets", 0)
+            sets_by_group_pattern.setdefault(group, {})
+            sets_by_group_pattern[group][pattern] = sets_by_group_pattern[group].get(pattern, 0) + sets
 
     coverage = {}
     for group, expected in MUSCLE_FUNCTIONS.items():
-        if group not in patterns_by_group:
+        pattern_sets = sets_by_group_pattern.get(group)
+        if not pattern_sets:
             continue  # групу взагалі не тренували цього тижня — нема що оцінювати
-        actual = patterns_by_group[group]
-        covered = actual & expected
-        missing = expected - actual
-        score = len(covered) / len(expected) if expected else 1.0
+
+        # Рахуємо загальний обсяг ЛИШЕ по очікуваних патернах цієї
+        # групи (сети на патерни поза MUSCLE_FUNCTIONS не впливають
+        # на пропорцію — вони вже не про "функціональну роль")
+        total_sets = sum(pattern_sets.get(p, 0) for p in expected)
+        if total_sets == 0:
+            continue
+
+        ideal_share = 1.0 / len(expected)
+        pattern_scores = {}
+        covered = set()
+        missing = set()
+
+        for pattern in expected:
+            actual_sets = pattern_sets.get(pattern, 0)
+            if actual_sets == 0:
+                pattern_scores[pattern] = 0.0
+                missing.add(pattern)
+                continue
+            actual_share = actual_sets / total_sets
+            # Не карається за перевиконання — лише капується на 1.0
+            pattern_score = min(1.0, actual_share / ideal_share)
+            pattern_scores[pattern] = round(pattern_score, 2)
+            covered.add(pattern)
+
+        score = sum(pattern_scores.values()) / len(expected)
         coverage[group] = {
             "covered": covered,
             "missing": missing,
+            "pattern_scores": pattern_scores,
             "score": round(score, 2),
         }
 
