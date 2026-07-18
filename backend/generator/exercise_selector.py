@@ -92,6 +92,20 @@ def get_exercise_score(
         from .priority import priority_score_bonus
         score += priority_score_bonus(muscle_group, ex.get("movement_pattern"), priority_muscle, priority_pattern)
 
+    # 7. Level-Dependent Progression — новачку (рівень 1) легше
+    #    ВИКОНАТИ технічно (нижча stability/skill) навіть при тій
+    #    самій difficulty; профі (рівень 4) навпаки — технічніші,
+    #    вимогливіші до балансу варіації дають кращий стимул, і вони
+    #    вже готові до них. Рівні 2-3 — нейтрально, без цього бонусу.
+    stability = ex.get("stability", 3)
+    skill = ex.get("skill", 3)
+    if level == 1:
+        score += (3 - stability) * 0.4
+        score += (3 - skill) * 0.3
+    elif level == 4:
+        score += (stability - 3) * 0.4
+        score += (skill - 3) * 0.3
+
     return score
 
 

@@ -60,38 +60,65 @@ def _macro_tier(ex: dict) -> int:
     return DEFAULT_TIER
 
 
-def _intra_tier_score(ex: dict) -> float:
+def _unilateral_penalty_for_level(level: int | None) -> float:
+    """Level-Dependent Progression: новачку (рівень 1) унілатеральні
+    вправи даються важче технічно — штраф сильніший, вони йдуть
+    пізніше в тренуванні. Профі (рівень 4) — навпаки, можуть братись
+    за них раніше, поки свіжі, штраф слабший."""
+    if level == 1:
+        return 15
+    if level == 4:
+        return 5
+    return UNILATERAL_PENALTY
+
+
+def _stability_adjustment_for_level(stability: int, level: int | None) -> float:
+    """Level-Dependent Progression: той самий принцип, що вже є в
+    Score Engine (exercise_selector.py) — новачку простіше виконати
+    вправу з нижчою stability (тренажер), профі краще підходить
+    вища stability (вільна вага/баланс). Без цього дві білатеральні
+    вправи (напр. Присідання з гантелями vs Жим ногами) не
+    відрізнялись би за рівнем узагалі — унілатеральний штраф тут не
+    допомагає, якщо жодна з них не унілатеральна."""
+    if level == 1:
+        return (3 - stability) * 4
+    if level == 4:
+        return (stability - 3) * 4
+    return 0.0
+
+
+def _intra_tier_score(ex: dict, level: int | None = None) -> float:
     """Вищий бал → вправа виконується раніше В МЕЖАХ того самого
     твердого рівня (base серед base, assist серед assist, ...)."""
     subtype_score = COMPOUND_BONUS if ex.get("compound") else 0
     if ex.get("unilateral"):
-        subtype_score -= UNILATERAL_PENALTY
+        subtype_score -= _unilateral_penalty_for_level(level)
 
     fatigue_score = ex.get("fatigue", 3) * 20
     skill_score = ex.get("skill", 3) * 20
     spine_score = ex.get("spine_load", 1) * 20
     stimulus_score = ex.get("stimulus", 5) * 10
 
-    return (
+    base_score = (
         WEIGHT_SUBTYPE * subtype_score
         + WEIGHT_FATIGUE * fatigue_score
         + WEIGHT_SKILL * skill_score
         + WEIGHT_SPINE_LOAD * spine_score
         + WEIGHT_STIMULUS * stimulus_score
     )
+    return base_score + _stability_adjustment_for_level(ex.get("stability", 3), level)
 
 
 # Зберігаємо стару назву як псевдонім — primary.py імпортує саме її
 _priority_score = _intra_tier_score
-
-
-def order_exercises(exercises: list) -> list:
+def order_exercises(exercises: list, level: int | None = None) -> list:
     """
     Base → Assist → Isolation → Прес → Литки → Мобільність — тверді,
     гарантовані рівні. В межах кожного рівня — Priority Score
-    (Fatigue/Skill/Spine Load/Stimulus/Compound/Унілатеральність).
+    (Fatigue/Skill/Spine Load/Stimulus/Compound/Унілатеральність,
+    остання — рівень-залежна, якщо level задано).
     """
     def sort_key(ex):
-        return (_macro_tier(ex), -_intra_tier_score(ex))
+        return (_macro_tier(ex), -_intra_tier_score(ex, level))
 
     return sorted(exercises, key=sort_key)

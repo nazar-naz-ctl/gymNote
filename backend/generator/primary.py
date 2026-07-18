@@ -20,7 +20,7 @@ from .order import _priority_score
 from .priority import priority_score_bonus
 
 
-def select_primary_lift(exercises: list, priority_muscle: str = None, priority_pattern: str = None) -> dict | None:
+def select_primary_lift(exercises: list, priority_muscle: str = None, priority_pattern: str = None, level: int = None) -> dict | None:
     """
     Обирає й позначає Primary Lift дня. Мутує список: рівно одна
     вправа отримує is_primary=True, решта — is_primary=False.
@@ -55,7 +55,7 @@ def select_primary_lift(exercises: list, priority_muscle: str = None, priority_p
     pool = bilateral_base if bilateral_base else base_candidates
 
     def _combined_score(ex):
-        score = _priority_score(ex)
+        score = _priority_score(ex, level)
         if priority_muscle:
             score += priority_score_bonus(ex.get("_group"), ex.get("movement_pattern"), priority_muscle, priority_pattern)
         return score
