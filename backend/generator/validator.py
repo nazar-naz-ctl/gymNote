@@ -18,6 +18,7 @@ Program Validator
 
 from .exercise_selector import get_pattern
 from .volume import MAX_DIFFICULTY_BY_LEVEL
+from .coverage import compute_muscle_coverage, MIN_COVERAGE_FOR_PENALTY, MUSCLE_FUNCTIONS
 
 # Патерни, що вважаються "штовхаючими" (push) і "тягнучими" (pull)
 # рухами — для перевірки балансу навантаження за тиждень.
@@ -189,6 +190,18 @@ def validate_program(program: dict, level: int, equipment: list, goal: str = Non
             )
             score -= 5
 
+    # Muscle Coverage Engine — чи покриті всі функціональні ролі
+    # кожної тренованої групи м'язів за весь тиждень
+    coverage = compute_muscle_coverage(program)
+    for group, data in coverage.items():
+        if data["score"] < MIN_COVERAGE_FOR_PENALTY:
+            missing_labels = ", ".join(sorted(data["missing"]))
+            issues.append(
+                f"Недостатнє покриття функціональних ролей «{group}» "
+                f"({int(data['score']*100)}%) — бракує: {missing_labels}"
+            )
+            score -= 5
+
     score = max(0, min(100, score))
     return {
         "score": score,
@@ -200,4 +213,5 @@ def validate_program(program: dict, level: int, equipment: list, goal: str = Non
         "diversity_by_day": diversity_by_day,
         "joint_totals": joint_totals,
         "compound_ratio": compound_ratio,
+        "muscle_coverage": coverage,
     }
