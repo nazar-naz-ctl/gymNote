@@ -19,6 +19,7 @@ Program Validator
 from .exercise_selector import get_pattern
 from .volume import MAX_DIFFICULTY_BY_LEVEL
 from .coverage import compute_muscle_coverage, MIN_COVERAGE_FOR_PENALTY, MUSCLE_FUNCTIONS
+from .intelligence import compute_intelligence_score
 
 # Патерни, що вважаються "штовхаючими" (push) і "тягнучими" (pull)
 # рухами — для перевірки балансу навантаження за тиждень.
@@ -203,7 +204,7 @@ def validate_program(program: dict, level: int, equipment: list, goal: str = Non
             score -= 5
 
     score = max(0, min(100, score))
-    return {
+    result = {
         "score": score,
         "issues": issues,
         "push_sets": push_sets,
@@ -215,3 +216,11 @@ def validate_program(program: dict, level: int, equipment: list, goal: str = Non
         "compound_ratio": compound_ratio,
         "muscle_coverage": coverage,
     }
+
+    # Workout Intelligence Engine — об'єднує всі показники вище в
+    # один зважений Intelligence Score (окремо від штрафного "score")
+    intelligence = compute_intelligence_score(result, program)
+    result["intelligence_score"] = intelligence["intelligence_score"]
+    result["intelligence_breakdown"] = intelligence["breakdown"]
+
+    return result
