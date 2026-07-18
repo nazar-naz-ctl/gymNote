@@ -19,7 +19,7 @@ from .validator import validate_program
 from .order import order_exercises
 from .primary import select_primary_lift
 from .intent import classify_intent
-
+from .optimization_engine import optimize_program
 
 # ══════════════════════════════════════════════════════
 # СУПЕРСЕТИ
@@ -273,6 +273,14 @@ def generate_optimized_program(
     перегенеровує (до max_attempts спроб), якщо оцінка нижча за
     min_score. Повертає (program, report) — найкращу спробу за
     оцінкою, навіть якщо жодна не досягла порогу.
+
+    Optimization Engine 2.0: перед тим як переходити до наступної
+    ПОВНОЇ регенерації (дорога операція — весь тиждень заново,
+    втрачаючи все, що вже було добре), спершу пробуємо ЛОКАЛЬНО
+    підправити поточну спробу через optimize_program() — замкнений
+    цикл точкових замін окремих вправ. Повна регенерація лишається
+    як fallback, якщо локальна оптимізація не змогла підняти
+    програму до потрібного рівня.
     """
     # Розширюємо обладнання ОДИН РАЗ тут (не всередині generate_program),
     # щоб і генерація, і Validator бачили той самий список — інакше
@@ -288,6 +296,18 @@ def generate_optimized_program(
     for attempt in range(1, max_attempts + 1):
         program = generate_program(location, equipment, goal, level, days, priority_muscle, priority_pattern)
         report = validate_program(program, level=level, equipment=equipment, goal=goal)
+
+        # Якщо ця спроба не досягла порогу — перш ніж переходити до
+        # ще однієї повної регенерації, пробуємо локально виправити
+        # ЦЮ САМУ програму через Optimization Engine 2.0.
+        if report["score"] < min_score:
+            optimized_program, _opt_log = optimize_program(
+                program, level=level, equipment=equipment, goal=goal
+            )
+            optimized_report = validate_program(optimized_program, level=level, equipment=equipment, goal=goal)
+            if optimized_report["score"] > report["score"]:
+                program = optimized_program
+                report = optimized_report
 
         if best_report is None or report["score"] > best_report["score"]:
             best_program = program
