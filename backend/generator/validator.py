@@ -31,12 +31,37 @@ PULL_PATTERNS = {
     "pullover", "lat_pullover",
 }
 
+# Validator 2.0 — Joint Balance: який тип суглоба переважно
+# навантажує кожен патерн (для перевірки, чи не перевантажені одні
+# й ті ж суглоби весь тиждень поспіль)
+JOINT_TYPE_BY_PATTERN = {
+    "squat_bilateral": "коліна", "squat_unilateral": "коліна", "squat_machine": "коліна",
+    "lunge_unilateral": "коліна", "leg_extension": "коліна", "squat_explosive": "коліна",
+    "leg_curl": "коліна",
+    "vertical_press": "плечі", "horizontal_press": "плечі", "incline_press": "плечі",
+    "decline_press": "плечі", "lateral_raise": "плечі", "front_raise": "плечі",
+    "tricep_extension": "лікті", "bicep_curl": "лікті",
+    "hip_hinge_deadlift": "хребет/таз", "hip_hinge": "хребет/таз", "hip_thrust": "хребет/таз",
+}
 
-def validate_program(program: dict, level: int, equipment: list) -> dict:
+# Validator 2.0 — Compound/Isolation: цільове співвідношення
+# (компаунд-сети / усі сети) залежно від цілі користувача
+TARGET_COMPOUND_RATIO = {
+    "сила": 0.65,
+    "маса": 0.55,
+    "рельєф": 0.45,
+    "схуднення": 0.40,
+    "витривалість": 0.35,
+}
+COMPOUND_RATIO_TOLERANCE = 0.25
+
+
+def validate_program(program: dict, level: int, equipment: list, goal: str = None) -> dict:
     """
     Перевіряє вже згенеровану програму й повертає:
     {"score": 0-100, "issues": [опис проблем], "push_sets": ..., "pull_sets": ...,
-     "quad_sets": ..., "ham_sets": ...}
+     "quad_sets": ..., "ham_sets": ..., "diversity_by_day": {...},
+     "joint_totals": {...}, "compound_ratio": ...}
     """
     issues = []
     score = 100
@@ -45,16 +70,26 @@ def validate_program(program: dict, level: int, equipment: list) -> dict:
     pull_sets = 0
     quad_sets = 0
     ham_sets = 0
+    compound_sets = 0
+    isolation_sets = 0
+    joint_totals = {}
+    diversity_by_day = {}
     equip_set = set(equipment)
     max_diff = MAX_DIFFICULTY_BY_LEVEL.get(level, 5)
 
     for day_num, day in program.items():
         seen_today = set()
+        day_patterns = set()
+        day_exercise_count = 0
+
         for ex in day.get("exercises", []):
             name = ex["name"]
-            pattern = get_pattern(name)
+            pattern = ex.get("movement_pattern") or get_pattern(name)
             sets = ex.get("sets", 0)
             group = ex.get("_group")
+            day_exercise_count += 1
+            if pattern:
+                day_patterns.add(pattern)
 
             if pattern in PUSH_PATTERNS:
                 push_sets += sets
@@ -65,6 +100,18 @@ def validate_program(program: dict, level: int, equipment: list) -> dict:
                 quad_sets += sets
             elif group == "біцепс стегна":
                 ham_sets += sets
+
+            # Compound/Isolation (Validator 2.0)
+            if ex.get("compound"):
+                compound_sets += sets
+            else:
+                isolation_sets += sets
+
+            # Joint Balance (Validator 2.0) — сумуємо joint_fatigue
+            # за типом суглоба за весь тиждень
+            joint_type = JOINT_TYPE_BY_PATTERN.get(pattern)
+            if joint_type:
+                joint_totals[joint_type] = joint_totals.get(joint_type, 0) + ex.get("joint_fatigue", 1) * sets
 
             # Обладнання — вправа має підходити хоч під один з наявних предметів
             ex_equipment = set(ex.get("equipment", []))
@@ -84,6 +131,20 @@ def validate_program(program: dict, level: int, equipment: list) -> dict:
                 score -= 10
             seen_today.add(name)
 
+        # Diversity Score (Validator 2.0) — скільки РІЗНИХ рухових
+        # патернів у дні відносно кількості вправ. Низький показник
+        # означає, що багато вправ дня діють на тіло дуже подібно
+        # (навіть якщо формально різні назви).
+        if day_exercise_count > 0:
+            diversity_ratio = len(day_patterns) / day_exercise_count
+            diversity_by_day[day_num] = round(diversity_ratio, 2)
+            if diversity_ratio < 0.5:
+                issues.append(
+                    f"День {day_num}: низька різноманітність рухів "
+                    f"({len(day_patterns)} унікальних патернів на {day_exercise_count} вправ)"
+                )
+                score -= 5
+
     if push_sets or pull_sets:
         total = push_sets + pull_sets
         ratio = push_sets / total
@@ -102,6 +163,32 @@ def validate_program(program: dict, level: int, equipment: list) -> dict:
             )
             score -= 10
 
+    # Joint Balance — чи не перевантажений один тип суглоба явно
+    # більше за інші за весь тиждень
+    compound_ratio = None
+    if joint_totals and len(joint_totals) > 1:
+        max_joint = max(joint_totals, key=joint_totals.get)
+        max_value = joint_totals[max_joint]
+        others_avg = sum(v for k, v in joint_totals.items() if k != max_joint) / (len(joint_totals) - 1)
+        if others_avg > 0 and max_value > others_avg * 2.5:
+            issues.append(
+                f"Дисбаланс навантаження на суглоби за тиждень: «{max_joint}» "
+                f"навантажені значно більше за решту ({joint_totals})"
+            )
+            score -= 5
+
+    # Compound/Isolation — чи відповідає цілі користувача
+    if goal and (compound_sets or isolation_sets):
+        total = compound_sets + isolation_sets
+        compound_ratio = round(compound_sets / total, 2)
+        target = TARGET_COMPOUND_RATIO.get(goal)
+        if target is not None and abs(compound_ratio - target) > COMPOUND_RATIO_TOLERANCE:
+            issues.append(
+                f"Compound/Isolation не відповідає цілі «{goal}»: "
+                f"{int(compound_ratio*100)}% compound (орієнтир ~{int(target*100)}%)"
+            )
+            score -= 5
+
     score = max(0, min(100, score))
     return {
         "score": score,
@@ -110,4 +197,7 @@ def validate_program(program: dict, level: int, equipment: list) -> dict:
         "pull_sets": pull_sets,
         "quad_sets": quad_sets,
         "ham_sets": ham_sets,
+        "diversity_by_day": diversity_by_day,
+        "joint_totals": joint_totals,
+        "compound_ratio": compound_ratio,
     }

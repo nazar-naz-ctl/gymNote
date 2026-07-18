@@ -264,7 +264,7 @@ def generate_optimized_program(
 
     for attempt in range(1, max_attempts + 1):
         program = generate_program(location, equipment, goal, level, days, priority_muscle, priority_pattern)
-        report = validate_program(program, level=level, equipment=equipment)
+        report = validate_program(program, level=level, equipment=equipment, goal=goal)
 
         if best_report is None or report["score"] > best_report["score"]:
             best_program = program
