@@ -194,7 +194,13 @@ def generate_program(
             sets = apply_scale_to_sets(sets, muscle_group, volume_factors)
             for ex in found:
                 ex_sets = sets
-                if ex.get("spine_load", 1) >= 5:
+                # Fatigue Engine 2.0: демпфуємо не лише чисто осьові
+                # вправи (spine_load>=5), а й будь-які з високим
+                # навантаженням на суглоби (joint_fatigue>=4) —
+                # важкий жим над головою два дні поспіль так само
+                # варто притлумити, як і станову тягу, навіть якщо
+                # він не "осьовий" у розумінні хребта
+                if ex.get("spine_load", 1) >= 5 or ex.get("joint_fatigue", 1) >= 4:
                     ex_sets = max(1, round(sets * axial_factor_today))
                 ex["sets"] = ex_sets
                 ex["reps"] = reps

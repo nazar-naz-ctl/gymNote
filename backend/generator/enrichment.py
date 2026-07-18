@@ -973,6 +973,93 @@ CNS_COST_BY_PATTERN = {
 DEFAULT_CNS_COST = 2
 
 
+# ══════════════════════════════════════════════════════
+# FATIGUE ENGINE 2.0 — Local / Systemic / Joint (Neural вже є як CNS Cost)
+# ══════════════════════════════════════════════════════
+# Один загальний Fatigue Score змішує кілька різних речей в одне
+# число. Три нових виміри розділяють їх:
+#
+#   local_fatigue     — наскільки втома СКОНЦЕНТРОВАНА на одному
+#                       м'язі (ізоляція = висока, багатосуглобові
+#                       рухи розподіляють навантаження = нижча)
+#   systemic_fatigue  — наскільки вправа виснажує ЗАГАЛЬНИЙ ресурс
+#                       відновлення тіла (великі багатосуглобові
+#                       рухи — максимум, ізоляція — мінімум)
+#   joint_fatigue     — навантаження на СУГЛОБИ конкретно (коліна
+#                       при присіданнях, плечі при жимах над
+#                       головою) — ширше за spine_load (той лише
+#                       про хребет)
+
+LOCAL_FATIGUE_BY_PATTERN = {
+    # Ізоляція — максимальна локальна втома (все навантаження на
+    # один м'яз, нікуди не розподіляється)
+    "bicep_curl": 5, "bicep_curl_isolated": 5, "tricep_extension": 5,
+    "lateral_raise": 5, "front_raise": 5, "chest_fly": 4,
+    "leg_curl": 5, "leg_extension": 5, "calf_raise": 5,
+    "rear_delt_fly": 4, "shrug": 4, "upright_row": 3,
+
+    # Багатосуглобові — навантаження розподілене між кількома
+    # м'язами, тому локально легше на кожен окремий
+    "hip_hinge_deadlift": 2, "squat_bilateral": 2,
+    "olympic_pull": 2, "olympic_press": 2,
+    "horizontal_press": 3, "incline_press": 3, "decline_press": 3,
+    "horizontal_pull": 3, "vertical_pull": 3, "vertical_press": 3,
+    "hip_thrust": 3, "squat_unilateral": 3, "lunge_unilateral": 3,
+}
+DEFAULT_LOCAL_FATIGUE = 3
+
+
+SYSTEMIC_FATIGUE_BY_PATTERN = {
+    # Великі багатосуглобові рухи — максимальне навантаження на
+    # загальний ресурс відновлення тіла
+    "hip_hinge_deadlift": 5, "squat_bilateral": 5,
+    "olympic_pull": 5, "olympic_press": 5,
+    "squat_explosive": 4, "squat_unilateral": 4,
+    "lunge_unilateral": 4, "hip_hinge": 4, "carry": 4,
+
+    "horizontal_press": 3, "vertical_press": 3, "horizontal_pull": 3,
+    "vertical_pull": 3, "hip_thrust": 3, "squat_machine": 3,
+    "incline_press": 2, "decline_press": 2,
+
+    # Ізоляція — мінімальний системний вплив
+    "bicep_curl": 1, "tricep_extension": 1, "lateral_raise": 1,
+    "leg_curl": 1, "leg_extension": 1, "calf_raise": 1,
+    "core_stability": 1, "core_flexion": 1, "core_rotation": 1,
+}
+DEFAULT_SYSTEMIC_FATIGUE = 2
+
+
+JOINT_FATIGUE_BY_PATTERN = {
+    # Коліна
+    "squat_unilateral": 5, "squat_explosive": 5,
+    "squat_bilateral": 4, "lunge_unilateral": 4, "leg_extension": 4,
+    "squat_machine": 3, "leg_curl": 2,
+
+    # Плечі/лікті
+    "vertical_press": 4, "horizontal_press": 3, "incline_press": 3,
+    "decline_press": 3, "tricep_extension": 3, "lateral_raise": 2,
+
+    # Хребет/таз (суглобовий вимір, окремо від spine_load)
+    "hip_hinge_deadlift": 4, "hip_hinge": 3, "hip_thrust": 2,
+
+    # Низьке навантаження на суглоби
+    "bicep_curl": 1, "calf_raise": 1,
+    "core_stability": 1, "core_flexion": 1,
+}
+DEFAULT_JOINT_FATIGUE = 2
+
+
+def compute_local_fatigue(pattern: str) -> int:
+    return LOCAL_FATIGUE_BY_PATTERN.get(pattern, DEFAULT_LOCAL_FATIGUE)
+
+
+def compute_systemic_fatigue(pattern: str) -> int:
+    return SYSTEMIC_FATIGUE_BY_PATTERN.get(pattern, DEFAULT_SYSTEMIC_FATIGUE)
+
+
+def compute_joint_fatigue(pattern: str) -> int:
+    return JOINT_FATIGUE_BY_PATTERN.get(pattern, DEFAULT_JOINT_FATIGUE)
+
 def compute_cns_cost(pattern: str) -> int:
     return CNS_COST_BY_PATTERN.get(pattern, DEFAULT_CNS_COST)
 
@@ -993,6 +1080,9 @@ def enrich_exercise(ex: dict) -> dict:
     ex["stimulus"] = compute_stimulus(ex, pattern)          # 2.1: тепер число 1-10
     ex["recovery_days"] = compute_recovery_days(fatigue)     # 2.1: нове поле
     ex["cns_cost"] = compute_cns_cost(pattern)                # 2.2: нове поле
+    ex["local_fatigue"] = compute_local_fatigue(pattern)      # Fatigue Engine 2.0
+    ex["systemic_fatigue"] = compute_systemic_fatigue(pattern) # Fatigue Engine 2.0
+    ex["joint_fatigue"] = compute_joint_fatigue(pattern)      # Fatigue Engine 2.0
     return ex
 
 
