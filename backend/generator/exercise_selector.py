@@ -11,6 +11,7 @@ import random
 
 from exercises_db import get_exercises
 from .volume import filter_by_difficulty
+from .constraints import ConstraintContext, is_allowed, register_pick
 
 
 # ══════════════════════════════════════════════════════
@@ -336,18 +337,6 @@ ISOLATION_EXERCISES = {
 # ПІДБІР ВПРАВ
 # ══════════════════════════════════════════════════════
 
-def _family_cap_reached(pattern: str, family_counts: dict) -> bool:
-    """Обгортка над Compatibility Engine (recovery.py). Локальний імпорт —
-    recovery.py сам імпортує get_pattern звідси, тому імпорт нагорі файлу
-    спричинив би циклічну залежність."""
-    from .recovery import family_cap_reached
-    return family_cap_reached(pattern, family_counts)
-
-
-def _register_family_pick(pattern: str, family_counts: dict) -> None:
-    from .recovery import register_family_pick
-    register_family_pick(pattern, family_counts)
-
 
 def find_exercises(
     muscle_group: str,
@@ -368,6 +357,12 @@ def find_exercises(
     Спочатку шукає з пріоритетного списку, потім з бази.
     """
     results = []
+    _ctx = ConstraintContext(
+        used_names=used_names,
+        used_patterns=used_patterns,
+        avoid_today=avoid_today,
+        family_counts=family_counts if family_counts is not None else {},
+    )
 
     if ex_type == "base":
         priority_list = BASE_EXERCISES.get(muscle_group, [])
@@ -392,30 +387,26 @@ def find_exercises(
         priority_list = random.sample(priority_list, len(priority_list))
 
     for name in priority_list:
-        if name in used_names:
+        if name in _ctx.used_names:
             continue
         found = get_exercises(
             muscles=MUSCLE_SEARCH.get(muscle_group, [muscle_group]),
             equipment=equipment,
             level=level,
         )
-        pattern = get_pattern(name)
-        if used_patterns is not None and pattern and pattern in used_patterns:
+
+        matched = [e for e in found if e["name"] == name]
+        if not matched:
             continue
-        if family_counts is not None and pattern and _family_cap_reached(pattern, family_counts):
+        ex = matched[0]
+        if not is_allowed(ex, level, _ctx):
             continue
 
-        matched = filter_by_difficulty([e for e in found if e["name"] == name], level)
-        if matched:
-            ex = matched[0].copy()
-            results.append(ex)
-            used_names.add(name)
-            if used_patterns is not None and pattern:
-                used_patterns.add(pattern)
-            if family_counts is not None and pattern:
-                _register_family_pick(pattern, family_counts)
-            if len(results) >= count:
-                return results
+        ex = ex.copy()
+        results.append(ex)
+        register_pick(ex, _ctx)
+        if len(results) >= count:
+            return results
 
     if len(results) < count:
         muscle_list = MUSCLE_SEARCH.get(muscle_group, [muscle_group])
@@ -459,23 +450,16 @@ def find_exercises(
 
         found = _score_weighted_shuffle(found, level, ex_type, goal, muscle_group=muscle_group, priority_muscle=priority_muscle, priority_pattern=priority_pattern)
 
-        # Прохід 1: звичайний підбір з блокуванням used_names, патерну
-        # і родини патернів (Compatibility Engine — напр. не більше
-        # 2 hip-hinge рухів за день, навіть якщо точні патерни різні)
+        # Прохід 1: звичайний підбір через Constraint Engine — блокує
+        # used_names, патерн і родину патернів (Compatibility Engine)
         for ex in found:
-            if ex["name"] in used_names or len(results) >= count:
+            if len(results) >= count:
+                break
+            if not is_allowed(ex, level, _ctx):
                 continue
-            ex_pattern = ex.get("movement_pattern")
-            if used_patterns is not None and ex_pattern and ex_pattern in used_patterns:
-                continue
-            if family_counts is not None and ex_pattern and _family_cap_reached(ex_pattern, family_counts):
-                continue
-            results.append(ex.copy())
-            used_names.add(ex["name"])
-            if used_patterns is not None and ex_pattern:
-                used_patterns.add(ex_pattern)
-            if family_counts is not None and ex_pattern:
-                _register_family_pick(ex_pattern, family_counts)
+            ex = ex.copy()
+            results.append(ex)
+            register_pick(ex, _ctx)
 
         # Прохід 2: дозволяємо повторення ТОЧНОГО патерну, але ще тримаємо
         # ліміт родини (Compatibility Engine) — це саме той випадок, коли
@@ -492,41 +476,49 @@ def find_exercises(
             wide_found = get_exercises(equipment=equipment, level=level)
             wide_found = filter_by_difficulty(wide_found, level)
             wide_found = [e for e in wide_found if _primary_match(e) and _is_working_type(e)]
-            wide_found = _score_weighted_shuffle(wide_found, level, ex_type, goal, muscle_group=muscle_group, priority_muscle=priority_muscle, priority_pattern=priority_pattern)
+            wide_found = _score_weighted_shuffle(wide_found, level, ex_type, goal, muscle_group=muscle_group,
+                                                 priority_muscle=priority_muscle, priority_pattern=priority_pattern)
             for ex in wide_found:
-                if ex["name"] in used_names or len(results) >= count:
-                    continue
-                ex_pattern = ex.get("movement_pattern")
-                if family_counts is not None and ex_pattern and _family_cap_reached(ex_pattern, family_counts):
-                    continue
-                results.append(ex.copy())
-                used_names.add(ex["name"])
-                if family_counts is not None and ex_pattern:
-                    _register_family_pick(ex_pattern, family_counts)
-
-        # Прохід 3: остаточний фолбек — ігноруємо і патерн, і родину
-        # (used_names все ще блокує)
-        if len(results) < count:
-            for ex in found:
-                if ex["name"] in used_names or len(results) >= count:
-                    continue
-                results.append(ex.copy())
-                used_names.add(ex["name"])
-
-        # Прохід 4: якщо навіть після цього не вистачає (обладнання дуже
-        # обмежене, всі підходящі вправи вже використані раніше цього тижня)
-        # — дозволяємо повторити ту саму вправу в інший день. Це нормальна
-        # практика в реальних програмах, краще за порожній день.
-        if len(results) < count and found:
-            already_in_this_slot = {e["name"] for e in results}
-            for ex in found:
                 if len(results) >= count:
                     break
-                if ex["name"] in already_in_this_slot:
+                # Прохід 2 свідомо дозволяє повторення ТОЧНОГО патерну
+                # (check_pattern=False) — родина патернів все ще ліміт
+                if not is_allowed(ex, level, _ctx, check_pattern=False):
                     continue
-                if avoid_today and ex["name"] in avoid_today:
-                    continue
-                results.append(ex.copy())
-                already_in_this_slot.add(ex["name"])
+                ex = ex.copy()
+                results.append(ex)
+                register_pick(ex, _ctx)
+
+                # Прохід 3: остаточний фолбек — ігноруємо і патерн, і родину
+                # (used_names все ще блокує)
+                if len(results) < count:
+                    for ex in found:
+                        if len(results) >= count:
+                            break
+                        if not is_allowed(ex, level, _ctx, check_pattern=False, check_family=False):
+                            continue
+                        ex = ex.copy()
+                        results.append(ex)
+                        register_pick(ex, _ctx)
+
+                # Прохід 4: якщо навіть після цього не вистачає (обладнання дуже
+                # обмежене, всі підходящі вправи вже використані раніше цього тижня)
+                # — дозволяємо повторити ту саму вправу в інший день. Це нормальна
+                # практика в реальних програмах, краще за порожній день.
+                # avoid_today все ще перевіряється напряму (не через is_allowed) —
+                # тут свідомо ІГНОРУЄМО used_names (це і є суть Проходу 4: дозволити
+                # вправу, вже використану СЬОГОДНІ В ЦЬОМУ СЛОТІ раніше — перевірка
+                # йде проти already_in_this_slot, окремого локального сету).
+                if len(results) < count and found:
+                    already_in_this_slot = {e["name"] for e in results}
+                    for ex in found:
+                        if len(results) >= count:
+                            break
+                        if ex["name"] in already_in_this_slot:
+                            continue
+                        if _ctx.avoid_today and ex["name"] in _ctx.avoid_today:
+                            continue
+                        results.append(ex.copy())
+                        already_in_this_slot.add(ex["name"])
 
     return results
