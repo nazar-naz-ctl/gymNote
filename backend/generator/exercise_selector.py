@@ -12,6 +12,7 @@ import random
 from exercises_db import get_exercises
 from .volume import filter_by_difficulty
 from .constraints import ConstraintContext, is_allowed, register_pick
+from .context_score import compute_context_penalty
 
 
 # ══════════════════════════════════════════════════════
@@ -55,6 +56,7 @@ GOAL_TO_STIMULUS_TARGET = {
 def get_exercise_score(
     ex: dict, level: int, ex_type: str, goal: str = None,
     muscle_group: str = None, priority_muscle: str = None, priority_pattern: str = None,
+    family_counts: dict = None,
 ) -> float:
     score = 0.0
 
@@ -107,18 +109,25 @@ def get_exercise_score(
         score += (stability - 3) * 0.4
         score += (skill - 3) * 0.3
 
-    return score
+        # 8. Context Score Engine — м'який штраф за дублювання родини
+        #    патернів у межах уже обраних сьогодні вправ (перед твердим
+        #    лімітом Constraint Engine)
+    if family_counts is not None:
+        score += compute_context_penalty(ex.get("movement_pattern"), family_counts)
+
+        return score
 
 
 def _score_weighted_shuffle(
     exercises: list, level: int, ex_type: str, goal: str = None, jitter: float = 1.5,
     muscle_group: str = None, priority_muscle: str = None, priority_pattern: str = None,
+    family_counts: dict = None,
 ) -> list:
     """Сортує список вправ за Exercise Score + випадковий шум — кращі
     вправи частіше опиняються попереду, але не гарантовано завжди."""
     scored = [
         (
-            get_exercise_score(ex, level, ex_type, goal, muscle_group, priority_muscle, priority_pattern)
+            get_exercise_score(ex, level, ex_type, goal, muscle_group, priority_muscle, priority_pattern, family_counts)
             + random.uniform(-jitter, jitter),
             ex,
         )
@@ -448,7 +457,7 @@ def find_exercises(
             if pattern_matched:
                 found = pattern_matched
 
-        found = _score_weighted_shuffle(found, level, ex_type, goal, muscle_group=muscle_group, priority_muscle=priority_muscle, priority_pattern=priority_pattern)
+        found = _score_weighted_shuffle(found, level, ex_type, goal, muscle_group=muscle_group, priority_muscle=priority_muscle, priority_pattern=priority_pattern, family_counts=_ctx.family_counts)
 
         # Прохід 1: звичайний підбір через Constraint Engine — блокує
         # used_names, патерн і родину патернів (Compatibility Engine)
@@ -476,8 +485,7 @@ def find_exercises(
             wide_found = get_exercises(equipment=equipment, level=level)
             wide_found = filter_by_difficulty(wide_found, level)
             wide_found = [e for e in wide_found if _primary_match(e) and _is_working_type(e)]
-            wide_found = _score_weighted_shuffle(wide_found, level, ex_type, goal, muscle_group=muscle_group,
-                                                 priority_muscle=priority_muscle, priority_pattern=priority_pattern)
+            wide_found = _score_weighted_shuffle(wide_found, level, ex_type, goal, muscle_group=muscle_group, priority_muscle=priority_muscle, priority_pattern=priority_pattern, family_counts=_ctx.family_counts)
             for ex in wide_found:
                 if len(results) >= count:
                     break
