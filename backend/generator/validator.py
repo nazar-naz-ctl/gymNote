@@ -20,6 +20,7 @@ from .exercise_selector import get_pattern
 from .volume import MAX_DIFFICULTY_BY_LEVEL
 from .coverage import compute_muscle_coverage, MIN_COVERAGE_FOR_PENALTY, MUSCLE_FUNCTIONS
 from .intelligence import compute_intelligence_score
+from .weekly_balance import compute_weekly_balance_score
 
 # Патерни, що вважаються "штовхаючими" (push) і "тягнучими" (pull)
 # рухами — для перевірки балансу навантаження за тиждень.
@@ -222,5 +223,12 @@ def validate_program(program: dict, level: int, equipment: list, goal: str = Non
     intelligence = compute_intelligence_score(result, program)
     result["intelligence_score"] = intelligence["intelligence_score"]
     result["intelligence_breakdown"] = intelligence["breakdown"]
+
+    # Weekly Balance Engine — об'єднує Volume Engine (MEV/MAV/MRV) і
+    # Weekly Fatigue Manager в один Weekly Balance Score
+    weekly = compute_weekly_balance_score(program)
+    result["weekly_balance_score"] = weekly["weekly_balance_score"]
+    result["volume_balance"] = weekly["volume_balance"]
+    result["fatigue_distribution"] = weekly["fatigue_distribution"]
 
     return result
