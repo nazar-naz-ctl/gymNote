@@ -1,28 +1,25 @@
 """
-Evaluator — Крок 4
-═══════════════════
+Evaluator
+═════════
 Для кожного кандидата: тимчасова підстановка в копію програми →
 повний перерахунок ProgramState → порівняння з базовим станом за
 трьома критеріями:
 
-    1. Δintelligence_score має бути ≥ MIN_IMPROVEMENT (інакше приріст
-       занадто дрібний, щоб виправдати втручання — захист від
-       нескінченних дрібних коливань через random.uniform шум у
-       Score Engine)
+    1. Δintelligence_score має бути ≥ MIN_IMPROVEMENT
     2. weekly_balance_score НЕ повинен впасти нижче WEEKLY_BALANCE_FLOOR
-       (жорстке обмеження — навіть велике покращення Intelligence не
-       виправдовує підрив тижневого балансу обсягу/втоми)
-    3. Не повинно з'явитись жодної НОВОЇ критичної проблеми (перевірка
-       через повторний collect_problems на trial-стані)
+    3. Не повинно з'явитись жодної НОВОЇ критичної проблеми
 
 Серед усіх кандидатів, що пройшли ці три перевірки, обирається той
-з найбільшим Δintelligence_score / replacement_cost (найбільший
-приріст на одиницю "втручання" в програму).
+з найбільшим Δintelligence_score / replacement_cost.
+
+Кожен кандидат сам знає, як застосувати себе до програми (метод
+apply()) — Evaluator не знає деталей конкретної стратегії, працює
+уніфіковано з будь-яким типом кандидата.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from .program_state import build_trial_state, deep_copy_program
+from .program_state import build_trial_state
 from .optimization_problems import collect_problems, PRIORITY_CRITICAL
 
 MIN_IMPROVEMENT = 0.5
@@ -31,34 +28,19 @@ WEEKLY_BALANCE_FLOOR = 70.0
 
 @dataclass
 class EvaluationResult:
-    candidate: object          # Candidate з optimization_strategy.py
+    candidate: object
     accepted: bool
     delta_intelligence: float
     weekly_balance_after: float
     new_critical_count: int
-    value_ratio: float          # delta_intelligence / cost, лише якщо accepted
-    rejection_reason: str = ""  # заповнено, якщо accepted=False
+    value_ratio: float
+    rejection_reason: str = ""
 
 
 def _apply_candidate_to_program(program: dict, candidate) -> dict:
-    """
-    Повертає НОВУ (глибоку копію) програму із заміненою одною вправою
-    в target-слоті. Оригінальна структурна інформація слоту (sets,
-    reps, ex_type, _group, is_primary, superset_id) переноситься з
-    вправи, яку заміняємо — кандидат дає лише "хто" (назва/метадані
-    з бази), не "скільки підходів"/"яка роль у тренуванні".
-    """
-    trial_program = deep_copy_program(program)
-    day_exercises = trial_program[candidate.day_num]["exercises"]
-    old_ex = day_exercises[candidate.exercise_index]
-
-    new_ex = candidate.exercise.copy()
-    for key in ("sets", "reps", "ex_type", "_group", "is_primary", "intent", "superset_id"):
-        if key in old_ex:
-            new_ex[key] = old_ex[key]
-
-    day_exercises[candidate.exercise_index] = new_ex
-    return trial_program
+    """Делегує застосування самому кандидату — уніфіковано для
+    будь-якого типу (Candidate, SetsAdjustCandidate, майбутні)."""
+    return candidate.apply(program)
 
 
 def _count_critical(problems: list) -> int:
@@ -66,11 +48,6 @@ def _count_critical(problems: list) -> int:
 
 
 def evaluate_candidate(problem, candidate, base_state, base_problems: list) -> EvaluationResult:
-    """
-    Оцінює ОДНОГО кандидата. Не мутує base_state.program.
-    base_problems — список Problem з базового стану (ДО заміни),
-    потрібен для порівняння кількості критичних проблем до/після.
-    """
     trial_program = _apply_candidate_to_program(base_state.program, candidate)
     trial_state = build_trial_state(base_state, trial_program)
 
@@ -94,7 +71,8 @@ def evaluate_candidate(problem, candidate, base_state, base_problems: list) -> E
         return EvaluationResult(
             candidate=candidate, accepted=False,
             delta_intelligence=delta_intelligence, weekly_balance_after=weekly_balance_after,
-            new_critical_count=new_critical_count, value_ratio=0.0,rejection_reason=f"weekly_balance впав до {weekly_balance_after} (поріг {WEEKLY_BALANCE_FLOOR})",
+            new_critical_count=new_critical_count, value_ratio=0.0,
+            rejection_reason=f"weekly_balance впав до {weekly_balance_after} (поріг {WEEKLY_BALANCE_FLOOR})",
         )
 
     if new_critical_count > 0:
@@ -116,11 +94,6 @@ def evaluate_candidate(problem, candidate, base_state, base_problems: list) -> E
 
 
 def evaluate_all_and_pick_best(problem, candidates: list, base_state, base_problems: list):
-    """
-    Оцінює всіх кандидатів для однієї Problem. Повертає
-    (best_result_or_None, all_results) — all_results потрібен для
-    детального логування (чому саме цей переміг, чому інші відхилено).
-    """
     all_results = [evaluate_candidate(problem, c, base_state, base_problems) for c in candidates]
     accepted = [r for r in all_results if r.accepted]
     if not accepted:
