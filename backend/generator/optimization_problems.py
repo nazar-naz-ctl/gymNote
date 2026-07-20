@@ -4,7 +4,7 @@ Problem — уніфікований опис проблеми програми 
 Джерела проблем (усі вже існують, тут лише консолідуються в один
 формат): Coverage gaps (недобір/відсутність патерну), Push/Pull і
 Quad/Ham дисбаланс, Compound/Isolation невідповідність цілі,
-Joint Balance перевищення, Diversity Score.
+Joint Balance перевищення, Microcycle (пари важких днів поспіль).
 
 priority — критичний/важливий/бажаний, визначає порядок обробки в
 оркестраторі циклу (спершу критичні).
@@ -14,6 +14,8 @@ severity — 0.0-1.0, наскільки далеко показник від н
 """
 
 from dataclasses import dataclass, field
+
+from .microcycle import compute_microcycle_report
 
 
 PRIORITY_CRITICAL = "критичний"
@@ -29,11 +31,14 @@ class Problem:
     severity: float          # 0.0-1.0, вище = гірше
     reason: str               # людинозрозумілий опис (для логів)
     source: str               # "coverage" | "validator_push_pull" | "validator_quad_ham" |
-                              # "validator_compound_ratio" | "validator_joint_balance"
+                              # "validator_compound_ratio" | "validator_joint_balance" |
+                              # "microcycle"
     affected_muscles: list = field(default_factory=list)
     affected_patterns: list = field(default_factory=list)
     target_slot: tuple = None  # (day_num, exercise_index) — заповнюється пізніше
                                 # Candidate Generator'ом, коли відомо КОНКРЕТНУ вправу для заміни
+    target_day: int = None     # для microcycle-проблем — конкретний день, з якого треба
+                                # знімати навантаження (другий день пари high/high)
 
     def sort_key(self):
         return (_PRIORITY_ORDER.get(self.priority, 99), -self.severity)
@@ -49,8 +54,6 @@ def collect_problems(state) -> list:
     report = state.report
 
     # ── Coverage gaps ──────────────────────────────────────────
-    # severity = наскільки далеко pattern_score від 1.0, усереднено
-    # по відсутніх/недобраних патернах групи
     for group, data in state.muscle_coverage.items():
         if data["score"] >= 0.5:
             continue
@@ -73,7 +76,7 @@ def collect_problems(state) -> list:
         total = push + pull
         ratio = push / total
         if ratio > 0.65 or ratio < 0.35:
-            severity = round(abs(ratio - 0.5) * 2, 2)  # 0.5=норма → 0, крайні значення → 1
+            severity = round(abs(ratio - 0.5) * 2, 2)
             problems.append(Problem(
                 priority=PRIORITY_IMPORTANT,
                 severity=severity,
@@ -107,7 +110,7 @@ def collect_problems(state) -> list:
         if others_avg > 0 and max_value > others_avg * 2.5:
             severity = round(min(1.0, (max_value / others_avg - 2.5) / 2.5), 2)
             problems.append(Problem(
-                priority=PRIORITY_CRITICAL,  # ризик травми — завжди критичний
+                priority=PRIORITY_CRITICAL,
                 severity=severity,
                 reason=f"Дисбаланс навантаження на суглоби: «{max_joint}» перевантажені ({joint_totals})",
                 source="validator_joint_balance",
@@ -127,6 +130,17 @@ def collect_problems(state) -> list:
                 reason=f"Compound/Isolation не відповідає цілі «{state.goal}»: {int(compound_ratio*100)}% (орієнтир ~{int(target*100)}%)",
                 source="validator_compound_ratio",
             ))
+
+    # ── Microcycle (пари важких днів поспіль) ────────────────────
+    micro = compute_microcycle_report(state.program)
+    for day1, day2 in micro["consecutive_high_pairs"]:
+        problems.append(Problem(
+            priority=PRIORITY_IMPORTANT,
+            severity=0.6,
+            reason=f"Дні {day1} і {day2} поспіль мають високе навантаження (Microcycle Score={micro['microcycle_score']})",
+            source="microcycle",
+            target_day=day2,
+        ))
 
     problems.sort(key=lambda p: p.sort_key())
     return problems

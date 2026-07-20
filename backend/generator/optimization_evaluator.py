@@ -5,22 +5,26 @@ Evaluator
 повний перерахунок ProgramState → порівняння з базовим станом за
 трьома критеріями:
 
-    1. Δintelligence_score має бути ≥ MIN_IMPROVEMENT
+    1. Приріст ЦІЛЬОВОЇ метрики має бути ≥ MIN_IMPROVEMENT. Для
+       більшості проблем цільова метрика — intelligence_score. Але
+       для source="microcycle" — окремо, microcycle_score, бо
+       Workout Intelligence Engine НЕ включає Microcycle Engine
+       у свою зважену формулу (вони розроблялись окремо), і
+       Δintelligence_score для мікроциклових замін часто випадково
+       негативний/нульовий, навіть коли форма тижневої хвилі реально
+       покращується — це виявлено емпірично на контрольованому тесті.
     2. weekly_balance_score НЕ повинен впасти нижче WEEKLY_BALANCE_FLOOR
     3. Не повинно з'явитись жодної НОВОЇ критичної проблеми
 
 Серед усіх кандидатів, що пройшли ці три перевірки, обирається той
-з найбільшим Δintelligence_score / replacement_cost.
-
-Кожен кандидат сам знає, як застосувати себе до програми (метод
-apply()) — Evaluator не знає деталей конкретної стратегії, працює
-уніфіковано з будь-яким типом кандидата.
+з найбільшим приростом цільової метрики / replacement_cost.
 """
 
 from dataclasses import dataclass
 
 from .program_state import build_trial_state
 from .optimization_problems import collect_problems, PRIORITY_CRITICAL
+from .microcycle import compute_microcycle_report
 
 MIN_IMPROVEMENT = 0.5
 WEEKLY_BALANCE_FLOOR = 70.0
@@ -38,8 +42,6 @@ class EvaluationResult:
 
 
 def _apply_candidate_to_program(program: dict, candidate) -> dict:
-    """Делегує застосування самому кандидату — уніфіковано для
-    будь-якого типу (Candidate, SetsAdjustCandidate, майбутні)."""
     return candidate.apply(program)
 
 
@@ -51,8 +53,14 @@ def evaluate_candidate(problem, candidate, base_state, base_problems: list) -> E
     trial_program = _apply_candidate_to_program(base_state.program, candidate)
     trial_state = build_trial_state(base_state, trial_program)
 
-    delta_intelligence = round(trial_state.intelligence_score - base_state.intelligence_score, 2)
     weekly_balance_after = trial_state.weekly_balance_score
+
+    if problem.source == "microcycle":
+        base_micro = compute_microcycle_report(base_state.program)["microcycle_score"]
+        trial_micro = compute_microcycle_report(trial_program)["microcycle_score"]
+        delta_intelligence = round(trial_micro - base_micro, 2)
+    else:
+        delta_intelligence = round(trial_state.intelligence_score - base_state.intelligence_score, 2)
 
     trial_problems = collect_problems(trial_state)
     critical_before = _count_critical(base_problems)
@@ -88,8 +96,7 @@ def evaluate_candidate(problem, candidate, base_state, base_problems: list) -> E
 
     return EvaluationResult(
         candidate=candidate, accepted=True,
-        delta_intelligence=delta_intelligence, weekly_balance_after=weekly_balance_after,
-        new_critical_count=new_critical_count, value_ratio=value_ratio,
+        delta_intelligence=delta_intelligence, weekly_balance_after=weekly_balance_after,new_critical_count=new_critical_count, value_ratio=value_ratio,
     )
 
 
