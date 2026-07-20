@@ -1,40 +1,31 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    InlineKeyboardMarkup, InlineKeyboardButton,
+    ReplyKeyboardMarkup, KeyboardButton,
+)
 
 
-def main_menu_kb(subscription: str = "free", channel_link: str = None) -> InlineKeyboardMarkup:
-    buttons = []
-
-    buttons.append([InlineKeyboardButton(text="💪 Тренування", callback_data="menu_workout")])
-
-    if subscription in ("premium"):
-        buttons.append([InlineKeyboardButton(text="📊 Мій прогрес", callback_data="progress")])
-
-    buttons.append([InlineKeyboardButton(text="💡 Поради", callback_data="tips")])
-    buttons.append([InlineKeyboardButton(text="🎵 Музика", callback_data="music_menu")])
-
-    if subscription == "premium":
-        buttons.append([InlineKeyboardButton(text="📬 Від тренера", callback_data="menu_trainer_contact")])
-    else:
-        buttons.append([InlineKeyboardButton(text="📬 Зв'язок з тренером", callback_data="contact_trainer")])
-
-    buttons.append([InlineKeyboardButton(text="💬 Підтримка", callback_data="support")])
-    buttons.append([InlineKeyboardButton(text="👤 Профіль", callback_data="menu_profile")])
-
-    if channel_link:
-        buttons.append([InlineKeyboardButton(text="📢 Наш канал", url=channel_link)])
-
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+def main_reply_kb() -> ReplyKeyboardMarkup:
+    """Головне меню User App — персистентна Reply-клавіатура над полем
+    вводу. 4 кнопки за узгодженою Target Architecture:
+    Створити програму / Почати тренування / Мій прогрес / Профіль."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🏋️ Створити програму"), KeyboardButton(text="▶️ Почати тренування")],
+            [KeyboardButton(text="📊 Мій прогрес"), KeyboardButton(text="👤 Профіль")],
+        ],
+        resize_keyboard=True,
+    )
 
 
 def trainer_menu_kb() -> InlineKeyboardMarkup:
+    """Trainer Panel — 5 кнопок за узгодженою Target Architecture:
+    Dashboard / Клієнти / Програми / Повідомлення / Статистика."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👥 Мої клієнти",         callback_data="t_clients")],
-        [InlineKeyboardButton(text="✍️ Скласти тренування",  callback_data="t_create_workout2")],
-        [InlineKeyboardButton(text="📬 Вхідні повідомлення", callback_data="t_inbox")],
-        [InlineKeyboardButton(text="📊 Статистика",          callback_data="t_stats")],
-        [InlineKeyboardButton(text="📈 Активність",          callback_data="t_activity")],
-        [InlineKeyboardButton(text="💳 Підписки",            callback_data="t_subscriptions")],
-        [InlineKeyboardButton(text="⚙️ Налаштування",        callback_data="t_settings")],
+        [InlineKeyboardButton(text="📊 Dashboard",     callback_data="t_dashboard")],
+        [InlineKeyboardButton(text="👥 Клієнти",       callback_data="t_clients")],
+        [InlineKeyboardButton(text="🏋️ Програми",      callback_data="t_programs")],
+        [InlineKeyboardButton(text="📬 Повідомлення",  callback_data="t_inbox")],
+        [InlineKeyboardButton(text="📈 Статистика",    callback_data="t_stats")],
     ])
 
 

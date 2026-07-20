@@ -2,7 +2,6 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from database import get_user, get_all_users, get_giveaway_number, get_channel_link
-from keyboards import main_menu_kb
 
 router = Router()
 
@@ -175,24 +174,3 @@ async def referral_top(callback: CallbackQuery):
         name = user.get("name", "Невідомий") if user else "Невідомий"
         text += f"{medals[i]} {name} — {count} {get_pool(count)}\n"
     await callback.message.edit_text(text, reply_markup=kb)
-
-
-@router.callback_query(F.data == "main_menu")
-async def back_to_main(callback: CallbackQuery) -> None:
-    from config import TRAINER_ID
-    from keyboards import trainer_menu_kb
-    user_id = callback.from_user.id
-
-    if user_id == TRAINER_ID:
-        await callback.message.edit_text(
-            "👋 З поверненням, тренере!\n\nПанель керування GymNote:",
-            reply_markup=trainer_menu_kb(),
-        )
-        return
-
-    user = await get_user(user_id)
-    subscription = user.get("subscription", "free") if user else "free"
-    await callback.message.edit_text(
-        "Обирай:",
-        reply_markup=main_menu_kb(subscription, channel_link=await get_channel_link()),
-    )

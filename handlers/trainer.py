@@ -361,6 +361,95 @@ async def trainer_send_answer(message: Message, state: FSMContext):
 
 # ── Тренер — статистика ───────────────────────────
 
+
+@router.callback_query(F.data == "t_dashboard")
+async def trainer_dashboard(callback: CallbackQuery):
+    """Консолідований підсумковий екран — Target Architecture Dashboard.
+    Замінює розрізнені t_stats/t_activity одним екраном-зведенням
+    + Швидкі дії (Розсилка, Налаштування)."""
+    if callback.from_user.id != TRAINER_ID:
+        return
+
+    from datetime import timedelta
+
+    now = datetime.utcnow()
+    clients = await get_clients()
+    total = len(clients)
+
+    # Активність (0-3 дні = активні)
+    active_count = 0
+    all_users = await get_all_users()
+    for uid, data in all_users.items():
+        try:
+            user_id = int(uid)
+        except ValueError:
+            continue
+        if user_id == TRAINER_ID or not isinstance(data, dict) or not data.get("registered"):
+            continue
+        rank, _, _ = _activity_bucket(data.get("last_active"), now)
+        if rank == 0:
+            active_count += 1
+
+    # Непрочитані повідомлення
+    inbox = await get_inbox()
+    unread_count = len(inbox)
+
+    # Premium, що закінчується протягом 7 днів
+    expiring_soon = []
+    today = datetime.now()
+    for c in clients:
+        sub_end = c.get("subscription_end")
+        if sub_end and c["subscription"] != "free":
+            try:
+                end_date = datetime.strptime(sub_end, "%Y-%m-%d")
+                days_left = (end_date - today).days
+                if 0 <= days_left <= 7:
+                    expiring_soon.append((c.get("name", "—"), days_left))
+            except ValueError:
+                pass
+
+    expiring_text = "немає" if not expiring_soon else "\n".join(
+        f"• {name} — {days} дн." for name, days in expiring_soon[:5]
+    )
+
+    text = (
+        f"📊 <b>Dashboard</b>\n\n"
+        f"👥 Клієнтів всього: <b>{total}</b>\n"
+        f"🟢 Активні (0-3 дн.): <b>{active_count}</b>\n"
+        f"📬 Непрочитаних повідомлень: <b>{unread_count}</b>\n\n"
+        f"⚠️ <b>Premium закінчується найближчим часом:</b>\n{expiring_text}\n\n"
+        f"<i>💳 Очікують підтвердження оплат: рахунок поки не ведеться — "
+        f"кожна оплата надходить окремим повідомленням у момент скріншота, "
+        f"без збереження в чергу. Додати персистентний облік — окрема задача.</i>"
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📣 Розсилка", callback_data="t_broadcast")],
+        [InlineKeyboardButton(text="⚙️ Налаштування", callback_data="t_settings")],
+        [InlineKeyboardButton(text="📈 Детальна активність", callback_data="t_activity")],
+        [InlineKeyboardButton(text="← Назад", callback_data="main_menu")],
+    ])
+    await callback.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data == "t_programs")
+async def trainer_programs_menu(callback: CallbackQuery):
+    """Програми — розумний генератор (backend.generator, той самий,
+    що й у клієнта) як основний спосіб + ручний ввід тексту як
+    швидша альтернатива для коротких приміток."""
+    if callback.from_user.id != TRAINER_ID:
+        return
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎯 Згенерувати", callback_data="t_gen_start")],
+        [InlineKeyboardButton(text="✍️ Скласти вручну (текстом)", callback_data="t_create_workout2")],
+        [InlineKeyboardButton(text="← Назад", callback_data="main_menu")],
+    ])
+    await callback.message.edit_text(
+        "🏋️ <b>Програми</b>\n\nОбери спосіб:",
+        reply_markup=kb,
+    )
+
+
 @router.callback_query(F.data == "t_stats")
 async def trainer_stats(callback: CallbackQuery):
     if callback.from_user.id != TRAINER_ID:

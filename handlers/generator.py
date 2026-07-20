@@ -521,6 +521,7 @@ async def generate_and_send_focus(callback: CallbackQuery, state: FSMContext, mu
         last_focus_hardcore=hardcore,
         last_focus_goal=goal,
         last_focus_priority_pattern=priority_pattern,
+        current_focus_workout=day,
     )
 
     text = format_focus_workout(day, muscle_groups, hardcore, equipment)

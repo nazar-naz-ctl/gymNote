@@ -7,7 +7,7 @@ from database import get_user, save_user, update_user_field, get_channel_link
 from keyboards import (
     gender_kb, age_kb, level_kb, goal_kb,
     location_kb, days_kb, injuries_kb, confirm_kb,
-    main_menu_kb,
+    main_reply_kb,
 )
 
 router = Router()
@@ -361,5 +361,5 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext) -> No
         f"🎁 Тобі активовано <b>пробний період 7 днів Преміум!</b>\n"
         f"Після закінчення перейдеш на безкоштовний тариф.\n\n"
         f"Обирай з меню що хочеш зробити:",
-        reply_markup=main_menu_kb("premium", channel_link=await get_channel_link()),
+        reply_markup=main_reply_kb(),
     )

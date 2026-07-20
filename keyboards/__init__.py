@@ -1,5 +1,5 @@
 from .main_kb import (
-    main_menu_kb,
+    main_reply_kb,
     trainer_menu_kb,
     role_kb,
     back_kb,
@@ -16,7 +16,7 @@ from .registration_kb import (
 )
 
 all = [
-    "main_menu_kb", "trainer_menu_kb", "role_kb", "back_kb",
+    "main_reply_kb", "trainer_menu_kb", "role_kb", "back_kb",
     "gender_kb", "age_kb", "level_kb", "goal_kb",
     "location_kb", "days_kb", "injuries_kb", "confirm_kb",
 ]
