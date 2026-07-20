@@ -88,6 +88,10 @@ FOCUS_GROUP_MAP = {
 
 
 async def check_generation_limit(callback: CallbackQuery) -> bool:
+    from config import PREMIUM_ENABLED
+    if not PREMIUM_ENABLED:
+        return True
+
     user = await get_user(callback.from_user.id)
     sub = user.get("subscription", "free") if user else "free"
     if sub == "free":
@@ -147,14 +151,16 @@ async def generate_and_send(callback: CallbackQuery, state: FSMContext, location
         else:
             await callback.message.answer(part)
 
-    user = await get_user(callback.from_user.id)
-    sub = user.get("subscription", "free") if user else "free"
-    if sub == "free":
-        await update_user_field(
-            callback.from_user.id,
-            "last_generation_date",
-            datetime.now().strftime("%d.%m.%Y")
-        )
+    from config import PREMIUM_ENABLED
+    if PREMIUM_ENABLED:
+        user = await get_user(callback.from_user.id)
+        sub = user.get("subscription", "free") if user else "free"
+        if sub == "free":
+            await update_user_field(
+                callback.from_user.id,
+                "last_generation_date",
+                datetime.now().strftime("%d.%m.%Y")
+            )
 
 
 @router.callback_query(F.data == "open_generator")

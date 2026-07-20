@@ -105,23 +105,25 @@ async def _maybe_send_channel_link(message: Message) -> None:
 @router.message(F.text == "🏋️ Створити програму")
 async def start_create_program(message: Message, state: FSMContext) -> None:
     from datetime import timedelta
+    from config import PREMIUM_ENABLED
     from handlers.generator import GeneratorStates
 
-    user = await get_user(message.from_user.id)
-    sub = user.get("subscription", "free") if user else "free"
-    if sub == "free":
-        last_gen = user.get("last_generation_date", "") if user else ""
-        if last_gen:
-            try:
-                last_date = datetime.strptime(last_gen, "%d.%m.%Y")
-                if datetime.now() - last_date < timedelta(days=7):
-                    next_date = (last_date + timedelta(days=7)).strftime("%d.%m.%Y")
-                    await message.answer(
-                        f"❌ Безкоштовно — 1 генерація на тиждень.\nНаступна: {next_date}"
-                    )
-                    return
-            except ValueError:
-                pass
+    if PREMIUM_ENABLED:
+        user = await get_user(message.from_user.id)
+        sub = user.get("subscription", "free") if user else "free"
+        if sub == "free":
+            last_gen = user.get("last_generation_date", "") if user else ""
+            if last_gen:
+                try:
+                    last_date = datetime.strptime(last_gen, "%d.%m.%Y")
+                    if datetime.now() - last_date < timedelta(days=7):
+                        next_date = (last_date + timedelta(days=7)).strftime("%d.%m.%Y")
+                        await message.answer(
+                            f"❌ Безкоштовно — 1 генерація на тиждень.\nНаступна: {next_date}"
+                        )
+                        return
+                except ValueError:
+                    pass
 
     await state.set_state(GeneratorStates.location)
     kb = InlineKeyboardMarkup(inline_keyboard=[
