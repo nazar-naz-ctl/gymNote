@@ -8,6 +8,7 @@ from database import (
     get_exercise_results,
     get_personal_record,
     save_exercise_result,
+    get_user,
 )
 
 
@@ -26,6 +27,7 @@ async def progress_menu(callback: CallbackQuery):
         [InlineKeyboardButton(text="📈 Мій прогрес",       callback_data="progress_my")],
         [InlineKeyboardButton(text="➕ Записати результат", callback_data="progress_add")],
         [InlineKeyboardButton(text="🏆 Особисті рекорди",  callback_data="progress_records")],
+        [InlineKeyboardButton(text="⭐ Аналіз програми",    callback_data="progress_analysis")],
         [InlineKeyboardButton(text="← Назад",              callback_data="main_menu")],
     ])
     await callback.message.edit_text(
@@ -173,3 +175,122 @@ async def progress_records(callback: CallbackQuery):
             text += f"💪 {ex}\n"
             text += f"   {record['weight']}кг × {record['reps']} повт — {record['date']}\n\n"
     await callback.message.edit_text(text, reply_markup=kb)
+
+
+# ══════════════════════════════════════════════════════
+# ⭐ Аналіз програми (Premium-аналітика)
+# ══════════════════════════════════════════════════════
+
+BREAKDOWN_LABELS = {
+    "push_pull": "Push/Pull баланс",
+    "quad_ham": "Квадрицепс/Задня поверхня стегна",
+    "horizontal_vertical": "Горизонтальні/Вертикальні рухи",
+    "compound_isolation": "Базові/Ізоляційні вправи",
+    "diversity": "Різноманітність рухів",
+    "joint_balance": "Баланс навантаження на суглоби",
+    "coverage": "Покриття м'язових груп",
+}
+
+
+def _score_label(score: float) -> str:
+    if score >= 85:
+        return "🟢 Відмінно"
+    if score >= 70:
+        return "🟡 Добре"
+    return "🔴 Потребує уваги"
+
+
+def _render_analysis(program: dict, level: int, equipment: list, goal: str, title: str) -> str:
+    from backend.generator import validate_program
+    from backend.generator.program_state import build_program_state
+    from backend.generator.optimization_problems import collect_problems
+
+    report = validate_program(program, level=level, equipment=equipment, goal=goal)
+    intelligence = report["intelligence_score"]
+    breakdown = report.get("intelligence_breakdown", {})
+    weekly_balance = report["weekly_balance_score"]
+
+    state = build_program_state(program, level=level, equipment=equipment, goal=goal)
+    problems = collect_problems(state)
+
+    lines = [f"⭐ <b>{title}</b>\n"]
+    lines.append(f"Загальна якість: <b>{round(intelligence)}/100</b> {_score_label(intelligence)}")
+    lines.append(f"Тижневий баланс навантаження: <b>{round(weekly_balance)}/100</b> {_score_label(weekly_balance)}\n")
+
+    lines.append("<b>Деталі за критеріями:</b>")
+    for key, label in BREAKDOWN_LABELS.items():
+        val = breakdown.get(key)
+        if val is not None:
+            lines.append(f"  {label}: {round(val)}/100")
+
+    if problems:
+        lines.append("\n<b>💡 Рекомендації:</b>")
+        for prob in problems[:3]:
+            lines.append(f"  • {prob.reason}")
+    else:
+        lines.append("\n✅ Суттєвих проблем не знайдено — програма добре збалансована.")
+
+    return "\n".join(lines)
+
+
+@router.callback_query(F.data == "progress_analysis")
+async def progress_analysis(callback: CallbackQuery, state: FSMContext):
+    from backend.generator import program_from_storable
+
+    data = await state.get_data()
+    stored = data.get("current_program")
+    own_goal = data.get("current_goal")
+    own_level = data.get("current_level")
+    own_equipment = data.get("current_equipment")
+
+    user = await get_user(callback.from_user.id)
+    assigned = user.get("assigned_program") if user else None
+    assigned_goal = user.get("assigned_program_goal") if user else None
+    assigned_level = user.get("assigned_program_level") if user else None
+    assigned_equipment = user.get("assigned_program_equipment") if user else None
+
+    if not stored and not assigned:
+        await callback.message.edit_text(
+            "⭐ <b>Аналіз програми</b>\n\n"
+            "У тебе ще немає багатоденної програми для аналізу.\n"
+            "Створи її через головне меню 👇",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="← Назад", callback_data="progress")],
+            ]),
+        )
+        return
+
+    sections = []
+
+    if assigned and assigned_goal and assigned_level and assigned_equipment:
+        assigned_program = program_from_storable(assigned)
+        sections.append(_render_analysis(
+            assigned_program, assigned_level, assigned_equipment, assigned_goal,
+            "Програма від тренера",
+        ))
+
+    if stored and own_goal and own_level and own_equipment:
+        program = program_from_storable(stored)
+        sections.append(_render_analysis(
+            program, own_level, own_equipment, own_goal,
+            "Твоя власна програма",
+        ))
+
+    if not sections:
+        await callback.message.edit_text(
+            "⭐ <b>Аналіз програми</b>\n\n"
+            "Не вдалося проаналізувати — бракує даних про обладнання/рівень/ціль "
+            "(могло статись, якщо програма з'явилась до цього оновлення).\n"
+            "Згенеруй нову програму, щоб аналіз запрацював.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="← Назад", callback_data="progress")],
+            ]),
+        )
+        return
+
+    await callback.message.edit_text(
+        "\n\n━━━━━━━━━━━━━━━━\n\n".join(sections),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="← Назад", callback_data="progress")],
+        ]),
+    )

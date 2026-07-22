@@ -113,23 +113,22 @@ async def tips_pre(callback: CallbackQuery):
         reply_markup=kb,
     )
 
-    @router.callback_query(F.data == "tips_post")
-    async def tips_post(callback: CallbackQuery):
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="← Назад", callback_data="tips")],
-        ])
-        await callback.message.edit_text(
-            "🔋 <b>Після тренування</b>\n\n"
-            "1️⃣ <b>Їж протягом 30-60 хвилин</b>\n"
-            "Білок + вуглеводи.\n\n"
-            "2️⃣ <b>Протеїн одразу</b>\n"
-            "Якщо немає часу поїсти.\n\n"
-            "3️⃣ <b>Розтяжка</b>\n"
-            "10-15 хвилин стретчингу.\n\n"
-            "4️⃣ <b>Вода</b>\n"
-            "500-700мл після тренування.\n\n"
-            "5️⃣ <b>Запиши результати</b>\n"
-            "Одразу внеси дані в бота.",
-            reply_markup=kb,
-        )
-        
+@router.callback_query(F.data == "tips_post")
+async def tips_post(callback: CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="← Назад", callback_data="tips")],
+    ])
+    await callback.message.edit_text(
+        "🔋 <b>Після тренування</b>\n\n"
+        "1️⃣ <b>Їж протягом 30-60 хвилин</b>\n"
+        "Білок + вуглеводи.\n\n"
+        "2️⃣ <b>Протеїн одразу</b>\n"
+        "Якщо немає часу поїсти.\n\n"
+        "3️⃣ <b>Розтяжка</b>\n"
+        "10-15 хвилин стретчингу.\n\n"
+        "4️⃣ <b>Вода</b>\n"
+        "500-700мл після тренування.\n\n"
+        "5️⃣ <b>Запиши результати</b>\n"
+        "Одразу внеси дані в бота.",
+        reply_markup=kb,
+    )

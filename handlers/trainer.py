@@ -441,6 +441,7 @@ async def trainer_programs_menu(callback: CallbackQuery):
         return
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎯 Згенерувати", callback_data="t_gen_start")],
+        [InlineKeyboardButton(text="📋 Архів", callback_data="t_archive_start")],
         [InlineKeyboardButton(text="✍️ Скласти вручну (текстом)", callback_data="t_create_workout2")],
         [InlineKeyboardButton(text="← Назад", callback_data="main_menu")],
     ])

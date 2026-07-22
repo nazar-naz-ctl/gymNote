@@ -28,7 +28,7 @@ music_router = Router()
 TEMP_DIR = "temp_music"
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-SEARCH_LIMIT = 100
+SEARCH_LIMIT = 150
 
 
 class MusicStates(StatesGroup):
@@ -37,6 +37,33 @@ class MusicStates(StatesGroup):
 
 class TrackNotFoundError(Exception):
     pass
+
+
+SEARCH_ANIMATION_FRAMES = [
+    "🏋️ Шукаю трек...\n💪 Підхід 1/3 — розігрів",
+    "🏋️‍♂️ Шукаю трек...\n💪💪 Підхід 2/3 — робочий",
+    "🔥 Шукаю трек...\n💪💪💪 Підхід 3/3 — фініш",
+]
+
+
+async def _run_search_animation(status_msg) -> None:
+    """Фонова 'анімація' статусного повідомлення на час пошуку —
+    Telegram не підтримує справжні анімовані GIF у тексті, тому
+    імітуємо рух послідовними редагуваннями повідомлення. Задача
+    скасовується ззовні (task.cancel()), щойно пошук завершився —
+    сама вона працює у нескінченному циклі."""
+    i = 0
+    try:
+        while True:
+            frame = SEARCH_ANIMATION_FRAMES[i % len(SEARCH_ANIMATION_FRAMES)]
+            try:
+                await status_msg.edit_text(frame)
+            except Exception:
+                pass  # повідомлення могло вже змінитись/видалитись — не критично
+            i += 1
+            await asyncio.sleep(1.2)
+    except asyncio.CancelledError:
+        pass
 
 
 def _format_duration(seconds) -> str:
@@ -62,6 +89,9 @@ def _run_search(query: str, limit: int) -> list:
         return info.get("entries") or []
 
 
+MIN_TRACK_DURATION_SEC = 20  # коротше — майже завжди прев'ю/уривок, не повний трек
+
+
 async def search_tracks(query: str, limit: int = SEARCH_LIMIT) -> list[dict]:
     loop = asyncio.get_event_loop()
 
@@ -72,18 +102,46 @@ async def search_tracks(query: str, limit: int = SEARCH_LIMIT) -> list[dict]:
         return []
 
     results = []
+    seen = set()  # (назва, виконавець) — прибирає репости того самого треку
     for e in entries:
         if not e:
             continue
         url = e.get("url") or e.get("webpage_url")
         if not url:
             continue
+
+        duration = e.get("duration")
+        # Фільтруємо лише те, що ТОЧНО відомо як обрізок (duration присутня
+        # і явно дуже коротка). "extract_flat" часто взагалі не повертає
+        # duration для SoundCloud — у такому разі трек не відсіюємо
+        # наосліп, бо немає підстав вважати його прев'ю.
+        if duration is not None and duration < MIN_TRACK_DURATION_SEC:
+            continue
+
+        title = (e.get("title") or "Невідомий трек")[:80]
+        uploader = (e.get("uploader") or "Невідомий виконавець")[:60]
+
+        dedup_key = (title.lower().strip(), uploader.lower().strip())
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+
         results.append({
             "url": url,
-            "title": (e.get("title") or "Невідомий трек")[:80],
-            "uploader": (e.get("uploader") or "Невідомий виконавець")[:60],
-            "duration_str": _format_duration(e.get("duration")),
+            "title": title,
+            "uploader": uploader,
+            "duration_str": _format_duration(duration),
+            "_has_full_meta": bool(e.get("title") and e.get("uploader") and duration),
         })
+
+    # Треки з повними метаданими (назва+виконавець+тривалість відомі) —
+    # вище за неповні записи, які часто виявляються "битими"/недовантаженими
+    # картками SoundCloud. Порядок релевантності пошуку всередині кожної
+    # групи зберігається (стабільне сортування).
+    results.sort(key=lambda r: not r["_has_full_meta"])
+    for r in results:
+        del r["_has_full_meta"]
+
     return results
 
 
@@ -142,21 +200,28 @@ async def music_search_process(message: Message, state: FSMContext):
         await message.answer("Напиши текстовий запит 🙂")
         return
 
-    status_msg = await message.answer("🔎 Шукаю варіанти...")
+    status_msg = await message.answer(SEARCH_ANIMATION_FRAMES[0])
+    animation_task = asyncio.create_task(_run_search_animation(status_msg))
+
     try:
         results = await search_tracks(query)
-        if not results:
-            await status_msg.edit_text("😔 Нічого не знайшов. Спробуй іншу назву.")
-            return
-
-        await state.update_data(search_results=results)
-        await status_msg.edit_text(
-            f"🔍 Знайшов {len(results)} варіантів. Обери потрібний:",
-            reply_markup=search_results_kb(results, page=0),
-        )
     except Exception as e:
         print(f"[music] search_process error: {e!r}")
+        animation_task.cancel()
         await status_msg.edit_text("⚠️ Помилка пошуку. Спробуй ще раз пізніше.")
+        return
+
+    animation_task.cancel()
+
+    if not results:
+        await status_msg.edit_text("😔 Нічого не знайшов. Спробуй іншу назву.")
+        return
+
+    await state.update_data(search_results=results)
+    await status_msg.edit_text(
+        f"🔍 Знайшов {len(results)} варіантів. Обери потрібний:",
+        reply_markup=search_results_kb(results, page=0),
+    )
 
 
 @music_router.callback_query(F.data.startswith("music_page:"))

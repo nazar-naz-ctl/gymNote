@@ -367,6 +367,7 @@ async def start_my_progress(message: Message) -> None:
         [InlineKeyboardButton(text="📈 Мій прогрес",       callback_data="progress_my")],
         [InlineKeyboardButton(text="➕ Записати результат", callback_data="progress_add")],
         [InlineKeyboardButton(text="🏆 Особисті рекорди",  callback_data="progress_records")],
+        [InlineKeyboardButton(text="⭐ Аналіз програми",    callback_data="progress_analysis")],
     ])
     await message.answer("📊 <b>Статистика і прогрес</b>\n\nОбирай:", reply_markup=kb)
 
@@ -379,6 +380,7 @@ def _build_profile_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="👤 Мої дані",              callback_data="profile")],
         [InlineKeyboardButton(text="📋 Моя програма",           callback_data="my_active_program")],
+        [InlineKeyboardButton(text="🎵 Музика",                 callback_data="music_menu")],
         [InlineKeyboardButton(text="⭐ Підписка",               callback_data="my_subscription")],
         [InlineKeyboardButton(text="🎁 Реферальна програма",   callback_data="referral_menu")],
         [InlineKeyboardButton(text="🛠 Розширені інструменти",  callback_data="constructor")],

@@ -8,7 +8,7 @@ def music_menu_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="🔍 Пошук треку", callback_data="music_search")
     builder.button(text="❤️ Збережені", callback_data="music_saved")
-    builder.button(text="⬅️ Назад", callback_data="main_menu")
+    builder.button(text="⬅️ Назад", callback_data="menu_profile")
     builder.adjust(1)
     return builder.as_markup()
 

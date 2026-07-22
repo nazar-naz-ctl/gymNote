@@ -18,6 +18,8 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from datetime import datetime
+import random
 
 from config import TRAINER_ID
 from database import get_user, update_user_field
@@ -26,9 +28,13 @@ from backend.generator import (
     generate_optimized_program,
     format_program,
     program_to_storable,
+    program_from_storable,
+    find_exercises,
+    filter_by_difficulty,
     generate_focus_workout,
     format_focus_workout,
 )
+from exercises_db import get_exercises
 from handlers.generator import (
     LOCATION_MAP, EQUIPMENT_MAP, GOAL_MAP, LEVEL_MAP,
     FOCUS_GROUP_MAP, FOCUS_GROUP_LABELS,
@@ -158,7 +164,7 @@ async def trainer_gen_equipment(callback: CallbackQuery, state: FSMContext):
         await state.set_state(TrainerGenStates.goal)
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💪 Набір маси", callback_data="goal_mass")],
-            [InlineKeyboardButton(text="✂️ Рельєф / Сушка", callback_data="goal_relief")],
+            [InlineKeyboardButton(text="✂ Рельєф / Сушка", callback_data="goal_relief")],
             [InlineKeyboardButton(text="🏋️ Сила", callback_data="goal_strength")],
             [InlineKeyboardButton(text="🔥 Схуднення", callback_data="goal_loss")],
             [InlineKeyboardButton(text="🏃 Витривалість", callback_data="goal_endurance")],
@@ -265,6 +271,7 @@ async def trainer_gen_days(callback: CallbackQuery, state: FSMContext):
     parts = format_program(program, goal, level, days, equipment, score=report["score"])
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Призначити клієнту", callback_data="t_gen_assign")],
+        [InlineKeyboardButton(text="🔁 Замінити вправу", callback_data="t_replace_start")],
         [InlineKeyboardButton(text="🔄 Згенерувати ще", callback_data=f"t_gen_client:{client_id}")],
         [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
     ])
@@ -282,44 +289,7 @@ async def trainer_gen_days(callback: CallbackQuery, state: FSMContext):
 
 
 # ══════════════════════════════════════════════════════
-# 4. Призначення клієнту (персистентно в MongoDB)
-# ══════════════════════════════════════════════════════
-
-@router.callback_query(F.data == "t_gen_assign")
-async def trainer_gen_assign(callback: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    stored = data.get("generated_program")
-    client_id = data.get("target_client_id")
-    client_name = data.get("target_client_name", "Клієнт")
-
-    if not stored or not client_id:
-        await callback.answer("⚠️ Дані програми втрачено, згенеруй ще раз.", show_alert=True)
-        return
-
-    await update_user_field(client_id, "assigned_program", stored)
-    await update_user_field(client_id, "assigned_program_goal", data.get("gen_goal"))
-    await update_user_field(client_id, "assigned_program_level", data.get("gen_level"))
-    await update_user_field(client_id, "assigned_program_days", data.get("gen_days"))
-
-    try:
-        from bot import bot
-        await bot.send_message(
-            client_id,
-            "🎯 <b>Тренер призначив тобі нову програму!</b>\n\n"
-            "Відкрий \"▶️ Почати тренування\" в головному меню, щоб побачити її.",
-        )
-    except Exception:
-        pass
-
-    await callback.answer("✅ Програму призначено клієнту!", show_alert=True)
-    await state.clear()
-    await callback.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
-    ]))
-
-
-# ══════════════════════════════════════════════════════
-# 5. Фокус-тренування (одна/кілька груп м'язів)
+# 4а. Фокус-тренування (одна/кілька груп м'язів)
 # ══════════════════════════════════════════════════════
 
 @router.callback_query(TrainerGenStates.days, F.data == "days_focus")
@@ -482,3 +452,340 @@ async def trainer_gen_assign_focus(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
     ]))
+
+
+# ══════════════════════════════════════════════════════
+# 4б. Призначення клієнту (персистентно в MongoDB)
+# ══════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "t_gen_assign")
+async def trainer_gen_assign(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    stored = data.get("generated_program")
+    client_id = data.get("target_client_id")
+    client_name = data.get("target_client_name", "Клієнт")
+
+    if not stored or not client_id:
+        await callback.answer("⚠️ Дані програми втрачено, згенеруй ще раз.", show_alert=True)
+        return
+
+    # Архів: якщо в клієнта вже була призначена програма — переносимо
+    # її в архів ПЕРЕД перезаписом, а не втрачаємо назавжди. Це і є
+    # джерело даних для "📋 Архів" і "🔁 Клонувати" — нічого окремо
+    # не потрібно вести, історія формується сама по собі природним
+    # чином при кожному новому призначенні.
+    client = await get_user(client_id)
+    old_program = client.get("assigned_program") if client else None
+    if old_program:
+        archive = client.get("archived_programs", []) or []
+        archive.append({
+            "program": old_program,
+            "goal": client.get("assigned_program_goal"),
+            "level": client.get("assigned_program_level"),
+            "days": client.get("assigned_program_days"),
+            "equipment": client.get("assigned_program_equipment"),
+            "archived_date": datetime.now().strftime("%d.%m.%Y"),
+        })
+        await update_user_field(client_id, "archived_programs", archive)
+
+    await update_user_field(client_id, "assigned_program", stored)
+    await update_user_field(client_id, "assigned_program_goal", data.get("gen_goal"))
+    await update_user_field(client_id, "assigned_program_level", data.get("gen_level"))
+    await update_user_field(client_id, "assigned_program_days", data.get("gen_days"))
+    await update_user_field(client_id, "assigned_program_equipment", data.get("gen_equipment"))
+
+    try:
+        from bot import bot
+        await bot.send_message(
+            client_id,
+            "🎯 <b>Тренер призначив тобі нову програму!</b>\n\n"
+            "Відкрий \"▶️ Почати тренування\" в головному меню, щоб побачити її.",
+        )
+    except Exception:
+        pass
+
+    await callback.answer("✅ Програму призначено клієнту!", show_alert=True)
+    await state.clear()
+    await callback.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
+    ]))
+
+
+# ══════════════════════════════════════════════════════
+# 5. Замінити вправу (в ще НЕ призначеній, щойно згенерованій програмі)
+# ══════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "t_replace_start")
+async def t_replace_start(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    stored = data.get("generated_program")
+    if not stored:
+        await callback.answer("⚠️ Спочатку згенеруй програму.", show_alert=True)
+        return
+    program = program_from_storable(stored)
+
+    buttons = []
+    for day_num, day_data in program.items():
+        if not day_data.get("exercises"):
+            continue
+        buttons.append([InlineKeyboardButton(
+            text=f"День {day_num} — {day_data['name']}",
+            callback_data=f"t_replace_day:{day_num}",
+        )])
+    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data="t_replace_cancel")])
+
+    await callback.message.answer(
+        "🔁 <b>Заміна вправи</b>\n\nОбери день:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("t_replace_day:"))
+async def t_replace_day(callback: CallbackQuery, state: FSMContext):
+    day_num = int(callback.data.split(":", 1)[1])
+    data = await state.get_data()
+    stored = data.get("generated_program")
+    if not stored:
+        await callback.answer("⚠️ Програма застаріла.", show_alert=True)
+        return
+    program = program_from_storable(stored)
+    day_data = program.get(day_num)
+    if not day_data:
+        await callback.answer("⚠️ День не знайдено.", show_alert=True)
+        return
+
+    buttons = []
+    for i, ex in enumerate(day_data["exercises"]):
+        label = ex["name"]
+        if len(label) > 45:
+            label = label[:42] + "..."
+        buttons.append([InlineKeyboardButton(text=f"{i + 1}. {label}", callback_data=f"t_replace_ex:{day_num}:{i}")])
+    buttons.append([InlineKeyboardButton(text="❌ Скасувати", callback_data="t_replace_cancel")])
+
+    await callback.message.edit_text(
+        f"🔁 <b>День {day_num} — {day_data['name']}</b>\n\nЯку вправу замінити?",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("t_replace_ex:"))
+async def t_replace_ex(callback: CallbackQuery, state: FSMContext):
+    _, day_num_str, idx_str = callback.data.split(":")
+    day_num = int(day_num_str)
+    idx = int(idx_str)
+
+    data = await state.get_data()
+    stored = data.get("generated_program")
+    equipment = data.get("gen_equipment", [])
+    level = data.get("gen_level", 1)
+    goal = data.get("gen_goal", "маса")
+    days = data.get("gen_days", 1)
+    client_id = data.get("target_client_id")
+    client_name = data.get("target_client_name", "Клієнт")
+
+    if not stored:
+        await callback.answer("⚠️ Програма застаріла.", show_alert=True)
+        return
+
+    program = program_from_storable(stored)
+    day_data = program.get(day_num)
+    if not day_data or idx >= len(day_data["exercises"]):
+        await callback.answer("⚠️ Вправу не знайдено.", show_alert=True)
+        return
+
+    old_ex = day_data["exercises"][idx]
+    used_names = {e["name"] for e in day_data["exercises"]}
+
+    candidates = []
+    for alt_name in old_ex.get("alternatives", []):
+        matches = [e for e in get_exercises(equipment=equipment) if e["name"] == alt_name]
+        matches = filter_by_difficulty(matches, level)
+        candidates.extend(m for m in matches if m["name"] not in used_names)
+
+    if not candidates:
+        fallback = find_exercises(
+            muscle_group=old_ex.get("_group", ""),
+            ex_type=old_ex.get("ex_type", "isolation"),
+            equipment=equipment,
+            level=level,
+            goal=goal,
+            used_names=set(used_names),
+            count=1,
+        )
+        candidates = fallback
+
+    if not candidates:
+        await callback.answer("😔 Немає доступної заміни під це обладнання.", show_alert=True)
+        return
+
+    new_ex = random.choice(candidates).copy()
+    new_ex["sets"] = old_ex["sets"]
+    new_ex["reps"] = old_ex["reps"]
+    new_ex["ex_type"] = old_ex.get("ex_type")
+    new_ex["_group"] = old_ex.get("_group")
+    if "superset_id" in old_ex:
+        new_ex["superset_id"] = old_ex["superset_id"]
+
+    day_data["exercises"][idx] = new_ex
+    program[day_num] = day_data
+
+    await state.update_data(generated_program=program_to_storable(program))
+
+    parts = format_program(program, goal, level, days, equipment)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Призначити клієнту", callback_data="t_gen_assign")],
+        [InlineKeyboardButton(text="🔁 Замінити ще", callback_data="t_replace_start")],
+        [InlineKeyboardButton(text="🏠 Меню", callback_data="main_menu")],
+    ])
+
+    await callback.message.edit_text(f"✅ Замінено: {old_ex['name']} → {new_ex['name']}")
+
+    for i, part in enumerate(parts):
+        if i == 0:
+            await callback.message.answer(f"🎯 Для клієнта: <b>{client_name}</b>\n\n{part}")
+        elif i == len(parts) - 1:
+            await callback.message.answer(part, reply_markup=kb)
+        else:
+            await callback.message.answer(part)
+
+    await callback.answer("Вправу замінено ✅")
+
+
+@router.callback_query(F.data == "t_replace_cancel")
+async def t_replace_cancel(callback: CallbackQuery):
+    await callback.message.edit_text("Гаразд, залишаємо як є 🙂")
+    await callback.answer()
+
+
+# ══════════════════════════════════════════════════════
+# 6. Архів і Клонування
+# ══════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "t_archive_start")
+async def t_archive_start(callback: CallbackQuery):
+    if callback.from_user.id != TRAINER_ID:
+        return
+    clients = await get_clients()
+    if not clients:
+        await callback.answer("У тебе ще немає клієнтів.", show_alert=True)
+        return
+    buttons = [
+        [InlineKeyboardButton(text=c["name"], callback_data=f"t_archive_client:{c['id']}")]
+        for c in clients
+    ]
+    buttons.append([InlineKeyboardButton(text="← Назад", callback_data="t_programs")])
+    await callback.message.edit_text(
+        "📋 <b>Архів програм</b>\n\nОбери клієнта:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+
+
+@router.callback_query(F.data.startswith("t_archive_client:"))
+async def t_archive_client(callback: CallbackQuery):
+    client_id = int(callback.data.split(":", 1)[1])
+    client = await get_user(client_id)
+    archive = (client.get("archived_programs") or []) if client else []
+
+    if not archive:
+        await callback.message.edit_text(
+            "📋 <b>Архів</b>\n\nУ цього клієнта ще немає архівних програм "
+            "(з'являються автоматично при призначенні нової замість попередньої).",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="← Назад", callback_data="t_archive_start")],
+            ]),
+        )
+        return
+
+    buttons = []
+    for i, entry in enumerate(archive):
+        label = f"{entry.get('archived_date', '—')} — {entry.get('goal', '—')}, {entry.get('days', '—')} дн."
+        buttons.append([InlineKeyboardButton(text=label, callback_data=f"t_archive_view:{client_id}:{i}")])
+    buttons.append([InlineKeyboardButton(text="← Назад", callback_data="t_archive_start")])
+
+    await callback.message.edit_text(
+        f"📋 <b>Архів програм — {client.get('name', 'Клієнт')}</b>\n\nОбери запис:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+
+
+@router.callback_query(F.data.startswith("t_archive_view:"))
+async def t_archive_view(callback: CallbackQuery):
+    _, client_id_str, idx_str = callback.data.split(":")
+    client_id = int(client_id_str)
+    idx = int(idx_str)
+
+    client = await get_user(client_id)
+    archive = (client.get("archived_programs") or []) if client else []
+    if idx >= len(archive):
+        await callback.answer("⚠️ Запис не знайдено.", show_alert=True)
+        return
+
+    entry = archive[idx]
+    program = program_from_storable(entry["program"])
+    parts = format_program(
+        program, entry.get("goal", "маса"), entry.get("level", 1),
+        entry.get("days", 1), entry.get("equipment", []),
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔁 Клонувати (призначити знову)", callback_data=f"t_archive_clone:{client_id}:{idx}")],
+        [InlineKeyboardButton(text="← Назад", callback_data=f"t_archive_client:{client_id}")],
+    ])
+
+    for i, part in enumerate(parts):
+        if i == len(parts) - 1:
+            await callback.message.answer(part, reply_markup=kb)
+        else:
+            await callback.message.answer(part)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("t_archive_clone:"))
+async def t_archive_clone(callback: CallbackQuery):
+    """Клонування — призначає архівну програму тому самому клієнту
+    знову (стає його поточною assigned_program), а те, що було
+    призначено щойно перед цим, автоматично йде в архів за тією ж
+    логікою, що й у t_gen_assign."""
+    _, client_id_str, idx_str = callback.data.split(":")
+    client_id = int(client_id_str)
+    idx = int(idx_str)
+
+    client = await get_user(client_id)
+    archive = (client.get("archived_programs") or []) if client else []
+    if idx >= len(archive):
+        await callback.answer("⚠️ Запис не знайдено.", show_alert=True)
+        return
+    entry = archive[idx]
+
+    old_program = client.get("assigned_program") if client else None
+    if old_program:
+        new_archive = list(archive)
+        new_archive.append({
+            "program": old_program,
+            "goal": client.get("assigned_program_goal"),
+            "level": client.get("assigned_program_level"),
+            "days": client.get("assigned_program_days"),
+            "equipment": client.get("assigned_program_equipment"),
+            "archived_date": datetime.now().strftime("%d.%m.%Y"),
+        })
+        await update_user_field(client_id, "archived_programs", new_archive)
+
+    await update_user_field(client_id, "assigned_program", entry["program"])
+    await update_user_field(client_id, "assigned_program_goal", entry.get("goal"))
+    await update_user_field(client_id, "assigned_program_level", entry.get("level"))
+    await update_user_field(client_id, "assigned_program_days", entry.get("days"))
+    await update_user_field(client_id, "assigned_program_equipment", entry.get("equipment"))
+
+    try:
+        from bot import bot
+        await bot.send_message(
+            client_id,
+            "🎯 <b>Тренер призначив тобі програму!</b>\n\n"
+            "Відкрий \"▶️ Почати тренування\" в головному меню, щоб побачити її.",
+        )
+    except Exception:
+        pass
+
+    await callback.answer("✅ Клоновано й призначено клієнту!", show_alert=True)
