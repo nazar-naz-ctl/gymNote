@@ -277,6 +277,7 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext) -> No
         "id": user_id,
         "name": callback.from_user.full_name,
         "username": callback.from_user.username,
+        "registered_at": existing.get("registered_at") or datetime.now().isoformat(),
         "gender": data.get("gender") or existing.get("gender"),
         "age": data.get("age") or existing.get("age"),
         "level": data.get("level") or existing.get("level"),

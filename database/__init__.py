@@ -47,15 +47,47 @@ all = [
 
 
 async def save_last_workout(user_id: int, workout_name: str, completed_sets: dict) -> None:
+    now = datetime.now()
+    record = {
+        "name": workout_name,
+        "completed_sets": completed_sets,
+        "date": now.strftime("%d.%m.%Y %H:%M"),
+    }
+
+    user = await users_col.find_one({"_id": user_id})
+    update_fields = {"last_workout": record}
+    if not user or not user.get("first_workout_at"):
+        update_fields["first_workout_at"] = now.isoformat()
+
     await users_col.update_one(
         {"_id": user_id},
-        {"$set": {"last_workout": {
-            "name": workout_name,
-            "completed_sets": completed_sets,
-            "date": datetime.now().strftime("%d.%m.%Y %H:%M"),
-        }}},
+        {
+            "$set": update_fields,
+            "$push": {
+                "workout_history": {
+                    "$each": [record],
+                    "$slice": -200,  # тримаємо лише останні 200 — без цього документ МОГ БИ рости безмежно
+                }
+            },
+        },
         upsert=True
     )
+
+
+async def get_workout_history(user_id: int, limit: int = 50) -> list:
+    """Повертає останні limit завершених тренувань, найновіші спершу."""
+    user = await users_col.find_one({"_id": user_id})
+    if not user:
+        return []
+    history = user.get("workout_history", [])
+    return list(reversed(history))[:limit]
+
+
+async def count_completed_workouts(user_id: int) -> int:
+    user = await users_col.find_one({"_id": user_id})
+    if not user:
+        return 0
+    return len(user.get("workout_history", []))
 
 
 async def get_last_workout(user_id: int) -> Optional[dict]:

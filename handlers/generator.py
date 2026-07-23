@@ -114,6 +114,11 @@ async def check_generation_limit(callback: CallbackQuery) -> bool:
 async def generate_and_send(callback: CallbackQuery, state: FSMContext, location, equipment, goal, level, days):
     await callback.message.edit_text("⏳ Генерую програму...")
 
+    user = await get_user(callback.from_user.id)
+    if user and not user.get("first_generation_at"):
+        from datetime import datetime as _dt
+        await update_user_field(callback.from_user.id, "first_generation_at", _dt.now().isoformat())
+
     program, quality_report = generate_optimized_program(location, equipment, goal, level, days)
 
     if not program:

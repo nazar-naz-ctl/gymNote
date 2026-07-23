@@ -472,6 +472,17 @@ async def trainer_stats(callback: CallbackQuery):
     month_ago = today - timedelta(days=30)
     new_week = 0
     new_month = 0
+
+    # Funnel: реєстрація → перша генерація → перше тренування
+    funnel_registered = 0
+    funnel_generated = 0
+    funnel_started_workout = 0
+
+    # Retention D1/D7/D30: серед тих, хто зареєструвався ДОСТАТНЬО ДАВНО
+    # (щоб фізично встигнути повернутись на цей день), скільки реально
+    # були активні на цей день чи пізніше (last_active - registered_at)
+    retention_pools = {1: [0, 0], 7: [0, 0], 30: [0, 0]}  # [повернулись, всього в когорті]
+
     for uid, data in all_users.items():
         try:
             int(uid)
@@ -479,16 +490,51 @@ async def trainer_stats(callback: CallbackQuery):
             continue
         if not isinstance(data, dict) or not data.get("registered"):
             continue
-        trial = data.get("trial_end")
-        if trial:
+
+        reg_at_str = data.get("registered_at")
+        reg_date = None
+        if reg_at_str:
             try:
-                reg_date = datetime.strptime(trial, "%Y-%m-%d") - timedelta(days=7)
-                if reg_date >= week_ago:
-                    new_week += 1
-                if reg_date >= month_ago:
-                    new_month += 1
+                reg_date = datetime.fromisoformat(reg_at_str)
             except ValueError:
                 pass
+        if reg_date is None:
+            # Легасі-користувачі без registered_at (зареєструвались до
+            # цього оновлення) — наближено відновлюємо дату через trial_end,
+            # як і раніше, щоб не втрачати їх повністю зі статистики
+            trial = data.get("trial_end")
+            if trial:
+                try:
+                    reg_date = datetime.strptime(trial, "%Y-%m-%d") - timedelta(days=7)
+                except ValueError:
+                    continue
+            else:
+                continue
+
+        if reg_date >= week_ago:
+            new_week += 1
+        if reg_date >= month_ago:
+            new_month += 1
+
+        funnel_registered += 1
+        if data.get("first_generation_at"):
+            funnel_generated += 1
+        if data.get("first_workout_at"):
+            funnel_started_workout += 1
+
+        last_active_str = data.get("last_active")
+        last_active = None
+        if last_active_str:
+            try:
+                last_active = datetime.fromisoformat(last_active_str)
+            except ValueError:
+                pass
+
+        for days_n, bucket in retention_pools.items():
+            if (today - reg_date).days >= days_n:
+                bucket[1] += 1
+                if last_active and (last_active - reg_date).days >= days_n:
+                    bucket[0] += 1
 
     levels = {"beginner": 0, "intermediate": 0, "advanced": 0, "athlete": 0}
     locations = {"gym": 0, "outdoor": 0, "home": 0}
@@ -540,6 +586,29 @@ async def trainer_stats(callback: CallbackQuery):
         [InlineKeyboardButton(text="📣 Розсилка", callback_data="t_broadcast")],
         [InlineKeyboardButton(text="← Назад", callback_data="main_menu")],
     ])
+    def _pct(bucket):
+        returned, cohort = bucket
+        if cohort == 0:
+            return "n/a"
+        return f"{round(returned / cohort * 100)}%"
+
+    funnel_text = (
+        f"1️⃣ Зареєструвались: <b>{funnel_registered}</b>\n"
+        f"2️⃣ Згенерували програму: <b>{funnel_generated}</b>"
+        f" ({round(funnel_generated / funnel_registered * 100) if funnel_registered else 0}%)\n"
+        f"3️⃣ Почали тренування: <b>{funnel_started_workout}</b>"
+        f" ({round(funnel_started_workout / funnel_registered * 100) if funnel_registered else 0}%)\n\n"
+        f"<i>⚠️ Funnel і Retention рахуються лише серед клієнтів із відомою "
+        f"датою реєстрації ({funnel_registered} з {total}) — трекінг дати додано "
+        f"щойно, старіші клієнти в цю статистику поки не потрапляють.</i>"
+    )
+
+    retention_text = (
+        f"D1: <b>{_pct(retention_pools[1])}</b> ({retention_pools[1][0]}/{retention_pools[1][1]})\n"
+        f"D7: <b>{_pct(retention_pools[7])}</b> ({retention_pools[7][0]}/{retention_pools[7][1]})\n"
+        f"D30: <b>{_pct(retention_pools[30])}</b> ({retention_pools[30][0]}/{retention_pools[30][1]})"
+    )
+
     await callback.message.edit_text(
         f"📊 <b>Статистика</b>\n\n"
         f"👥 Всього клієнтів: <b>{total}</b>\n"
@@ -548,6 +617,9 @@ async def trainer_stats(callback: CallbackQuery):
         f"🆓 Безкоштовних: <b>{free}</b>\n\n"
         f"📅 Нових за тиждень: <b>{new_week}</b>\n"
         f"📅 Нових за місяць: <b>{new_month}</b>\n\n"
+        f"🔄 <b>Funnel:</b>\n{funnel_text}\n\n"
+        f"📈 <b>Retention:</b>\n{retention_text}\n"
+        f"<i>(частка тих, хто повернувся через N+ днів після реєстрації)</i>\n\n"
         f"📊 <b>Рівні підготовки:</b>\n{level_counts}\n\n"
         f"📍 <b>Локації:</b>\n{location_counts}\n\n"
         f"⚠️ <b>Прострочена підписка ({len(expired)}):</b>\n{expired_text}\n\n"
