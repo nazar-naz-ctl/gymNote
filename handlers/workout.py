@@ -233,6 +233,9 @@ async def create_workout(callback: CallbackQuery, state: FSMContext):
 
 @router.message(WorkoutStates.naming)
 async def workout_set_name(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("✏️ Напиши назву текстом.")
+        return
     await state.update_data(workout_name=message.text.strip())
     await state.set_state(WorkoutStates.adding_exercise)
     await message.answer(
@@ -245,6 +248,9 @@ async def workout_set_name(message: Message, state: FSMContext):
 
 @router.message(WorkoutStates.adding_exercise)
 async def workout_add_exercise(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("✏️ Напиши назву вправи текстом.")
+        return
     await state.update_data(current_exercise=message.text.strip())
     await state.set_state(WorkoutStates.adding_sets)
     data = await state.get_data()
@@ -450,6 +456,9 @@ async def show_current_exercise(callback: CallbackQuery, state: FSMContext):
 
 @router.message(WorkoutStates.in_progress)
 async def weight_input(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Введи вагу текстом. Наприклад: <i>60</i> або <i>57.5</i>")
+        return
     try:
         weight = float(message.text.strip().replace(",", "."))
         if weight < 0:
@@ -595,6 +604,9 @@ async def cancel_replace(callback: CallbackQuery, state: FSMContext):
 
 @router.message(WorkoutStates.replacing_ex)
 async def do_replace_exercise(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("✏️ Напиши назву вправи текстом.")
+        return
     new_name = message.text.strip()
     data = await state.get_data()
     workout = data["workout"]

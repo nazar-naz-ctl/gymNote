@@ -228,6 +228,9 @@ async def step_injuries_custom_prompt(callback: CallbackQuery, state: FSMContext
 
 @router.message(RegStates.injuries_custom)
 async def step_injuries_custom_input(message: Message, state: FSMContext) -> None:
+    if not message.text:
+        await message.answer("✏️ Будь ласка, напиши текстом, а не фото/стікером/голосовим.")
+        return
     await state.update_data(injuries="custom", injuries_label=message.text)
     await show_confirm_from_msg(message, state)
 

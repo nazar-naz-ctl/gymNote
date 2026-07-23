@@ -69,6 +69,9 @@ async def support_review_send(message: Message, state: FSMContext):
 
 
 async def _send_to_trainer(message: Message, state: FSMContext, category: str):
+    if not message.text:
+        await message.answer("✏️ Опиши текстом, будь ласка.")
+        return
     user = await get_user(message.from_user.id)
     name = user.get("name", "Невідомий") if user else "Невідомий"
     sub = user.get("subscription", "free") if user else "free"

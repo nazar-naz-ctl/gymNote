@@ -195,6 +195,9 @@ async def music_search_prompt(callback: CallbackQuery, state: FSMContext):
 
 @music_router.message(MusicStates.waiting_for_query)
 async def music_search_process(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("Напиши текстовий запит 🙂")
+        return
     query = message.text.strip()
     if not query:
         await message.answer("Напиши текстовий запит 🙂")

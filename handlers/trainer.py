@@ -328,6 +328,9 @@ async def trainer_send_answer(message: Message, state: FSMContext):
     data = await state.get_data()
     index = data.get("answer_index")
     user_id = data.get("answer_user_id") or data.get("message_to_user_id")
+    if not message.text:
+        await message.answer("✏️ Напиши відповідь текстом.")
+        return
     answer = message.text.strip()
     await state.clear()
 
@@ -862,6 +865,9 @@ async def trainer_set_requisites(callback: CallbackQuery, state: FSMContext):
 async def save_requisites(message: Message, state: FSMContext):
     if message.from_user.id != TRAINER_ID:
         return
+    if not message.text:
+        await message.answer("✏️ Напиши реквізити текстом.")
+        return
     await save_settings({"requisites": message.text.strip()})
     await state.clear()
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -900,6 +906,9 @@ async def set_price_premium(callback: CallbackQuery, state: FSMContext):
 async def save_price_standard(message: Message, state: FSMContext):
     if message.from_user.id != TRAINER_ID:
         return
+    if not message.text:
+        await message.answer("✏️ Напиши ціну текстом.")
+        return
     settings = await get_settings()
     prices = settings.get("prices", {"standard": "200 грн", "premium": "450 грн"})
     prices["standard"] = message.text.strip()
@@ -913,6 +922,9 @@ async def save_price_standard(message: Message, state: FSMContext):
 @router.message(PriceStates.typing_premium)
 async def save_price_premium(message: Message, state: FSMContext):
     if message.from_user.id != TRAINER_ID:
+        return
+    if not message.text:
+        await message.answer("✏️ Напиши ціну текстом.")
         return
     settings = await get_settings()
     prices = settings.get("prices", {"standard": "200 грн", "premium": "450 грн"})
@@ -934,6 +946,9 @@ async def trainer_set_channel(callback: CallbackQuery, state: FSMContext):
 @router.message(SettingsStates.typing_channel)
 async def trainer_save_channel(message: Message, state: FSMContext):
     if message.from_user.id != TRAINER_ID:
+        return
+    if not message.text:
+        await message.answer("✏️ Напиши посилання текстом.")
         return
     await save_settings({"channel_link": message.text.strip()})
     await state.clear()

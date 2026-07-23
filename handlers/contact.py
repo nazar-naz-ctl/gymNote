@@ -69,6 +69,9 @@ async def contact_ask(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ContactStates.waiting_question)
 async def receive_question(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("✏️ Напиши питання текстом.")
+        return
     user_id = message.from_user.id
     question = message.text.strip()
     position = await save_question(user_id, question)

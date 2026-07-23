@@ -105,6 +105,9 @@ async def progress_add(callback: CallbackQuery, state: FSMContext):
 
 @router.message(ProgressStates.waiting_exercise)
 async def get_exercise_name(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("✏️ Напиши назву вправи текстом.")
+        return
     await state.update_data(exercise=message.text.strip())
     await state.set_state(ProgressStates.waiting_weight)
     await message.answer(
@@ -115,6 +118,9 @@ async def get_exercise_name(message: Message, state: FSMContext):
 
 @router.message(ProgressStates.waiting_weight)
 async def get_weight(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Введи число текстом. Наприклад: <i>80</i>")
+        return
     try:
         weight = float(message.text.strip().replace(",", "."))
         await state.update_data(weight=weight)
@@ -129,6 +135,9 @@ async def get_weight(message: Message, state: FSMContext):
 
 @router.message(ProgressStates.waiting_reps)
 async def get_reps(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❌ Введи число текстом. Наприклад: <i>8</i>")
+        return
     try:
         reps = int(message.text.strip())
         data = await state.get_data()
