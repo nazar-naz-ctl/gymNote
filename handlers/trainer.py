@@ -105,7 +105,7 @@ async def get_trainer_programs(user_id: int) -> list:
 async def from_trainer(callback: CallbackQuery):
     programs = await get_trainer_programs(callback.from_user.id)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="← Назад", callback_data="menu_trainer_contact")],
+        [InlineKeyboardButton(text="← Назад", callback_data="menu_profile")],
     ])
     if not programs:
         await callback.message.edit_text(
@@ -120,7 +120,7 @@ async def from_trainer(callback: CallbackQuery):
             text=f"{status}📋 Програма від {p['date']}",
             callback_data=f"view_program_{len(programs)-1-i}",
         )])
-    buttons.append([InlineKeyboardButton(text="← Назад", callback_data="main_menu")])
+    buttons.append([InlineKeyboardButton(text="← Назад", callback_data="menu_profile")])
     await callback.message.edit_text(
         "📬 <b>Від тренера</b>\n\nТвої програми:",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
@@ -425,6 +425,7 @@ async def trainer_dashboard(callback: CallbackQuery):
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📣 Розсилка", callback_data="t_broadcast")],
+        [InlineKeyboardButton(text="💳 Підписки", callback_data="t_subscriptions")],
         [InlineKeyboardButton(text="⚙️ Налаштування", callback_data="t_settings")],
         [InlineKeyboardButton(text="📈 Детальна активність", callback_data="t_activity")],
         [InlineKeyboardButton(text="← Назад", callback_data="main_menu")],

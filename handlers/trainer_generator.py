@@ -116,10 +116,13 @@ async def trainer_gen_location(callback: CallbackQuery, state: FSMContext):
         buttons = [
             [InlineKeyboardButton(text="🏋️ Штанга", callback_data="eq_barbell"),
              InlineKeyboardButton(text="💪 Гантелі", callback_data="eq_dumbbells")],
-            [InlineKeyboardButton(text="⚙️ Тренажери", callback_data="eq_machines"),
+            [InlineKeyboardButton(text="⚙ Тренажери", callback_data="eq_machines"),
              InlineKeyboardButton(text="🎽 Гиря", callback_data="eq_kettlebell")],
             [InlineKeyboardButton(text="🔵 TRX", callback_data="eq_trx"),
-             InlineKeyboardButton(text="🔴 Резинки", callback_data="eq_bands")],
+             InlineKeyboardButton(text="🔴 Резинки (загальні)", callback_data="eq_bands")],
+            [InlineKeyboardButton(text="🟢 Міні-петля", callback_data="eq_mini_band"),
+             InlineKeyboardButton(text="🟣 Довга петля", callback_data="eq_long_band")],
+            [InlineKeyboardButton(text="🟡 Терапевтична стрічка", callback_data="eq_therapy_band")],
             [InlineKeyboardButton(text="✅ Далі →", callback_data="eq_done")],
             [InlineKeyboardButton(text="← Назад", callback_data="t_gen_start")],
         ]
@@ -127,8 +130,11 @@ async def trainer_gen_location(callback: CallbackQuery, state: FSMContext):
         buttons = [
             [InlineKeyboardButton(text="💪 Гантелі", callback_data="eq_dumbbells"),
              InlineKeyboardButton(text="🎽 Гиря", callback_data="eq_kettlebell")],
-            [InlineKeyboardButton(text="🔴 Резинки", callback_data="eq_bands"),
+            [InlineKeyboardButton(text="🔴 Резинки (загальні)", callback_data="eq_bands"),
              InlineKeyboardButton(text="🔵 TRX", callback_data="eq_trx")],
+            [InlineKeyboardButton(text="🟢 Міні-петля", callback_data="eq_mini_band"),
+             InlineKeyboardButton(text="🟣 Довга петля", callback_data="eq_long_band")],
+            [InlineKeyboardButton(text="🟡 Терапевтична стрічка", callback_data="eq_therapy_band")],
             [InlineKeyboardButton(text="🏃 Власна вага", callback_data="eq_bodyweight")],
             [InlineKeyboardButton(text="✅ Далі →", callback_data="eq_done")],
             [InlineKeyboardButton(text="← Назад", callback_data="t_gen_start")],
@@ -137,8 +143,13 @@ async def trainer_gen_location(callback: CallbackQuery, state: FSMContext):
         buttons = [
             [InlineKeyboardButton(text="🔝 Турнік", callback_data="eq_pullup"),
              InlineKeyboardButton(text="🤸 Бруси", callback_data="eq_bars")],
-            [InlineKeyboardButton(text="🔴 Резинки", callback_data="eq_bands"),
+            [InlineKeyboardButton(text="🔴 Резинки (загальні)", callback_data="eq_bands"),
              InlineKeyboardButton(text="🏃 Власна вага", callback_data="eq_bodyweight")],
+            [InlineKeyboardButton(text="⭕ Кільця", callback_data="eq_rings"),
+             InlineKeyboardButton(text="🎽 Гиря", callback_data="eq_kettlebell")],
+            [InlineKeyboardButton(text="🟢 Міні-петля", callback_data="eq_mini_band"),
+             InlineKeyboardButton(text="🟣 Довга петля", callback_data="eq_long_band")],
+            [InlineKeyboardButton(text="🟡 Терапевтична стрічка", callback_data="eq_therapy_band")],
             [InlineKeyboardButton(text="✅ Далі →", callback_data="eq_done")],
             [InlineKeyboardButton(text="← Назад", callback_data="t_gen_start")],
         ]
@@ -164,7 +175,7 @@ async def trainer_gen_equipment(callback: CallbackQuery, state: FSMContext):
         await state.set_state(TrainerGenStates.goal)
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💪 Набір маси", callback_data="goal_mass")],
-            [InlineKeyboardButton(text="✂ Рельєф / Сушка", callback_data="goal_relief")],
+            [InlineKeyboardButton(text="✂️ Рельєф / Сушка", callback_data="goal_relief")],
             [InlineKeyboardButton(text="🏋️ Сила", callback_data="goal_strength")],
             [InlineKeyboardButton(text="🔥 Схуднення", callback_data="goal_loss")],
             [InlineKeyboardButton(text="🏃 Витривалість", callback_data="goal_endurance")],
@@ -469,11 +480,6 @@ async def trainer_gen_assign(callback: CallbackQuery, state: FSMContext):
         await callback.answer("⚠️ Дані програми втрачено, згенеруй ще раз.", show_alert=True)
         return
 
-    # Архів: якщо в клієнта вже була призначена програма — переносимо
-    # її в архів ПЕРЕД перезаписом, а не втрачаємо назавжди. Це і є
-    # джерело даних для "📋 Архів" і "🔁 Клонувати" — нічого окремо
-    # не потрібно вести, історія формується сама по собі природним
-    # чином при кожному новому призначенні.
     client = await get_user(client_id)
     old_program = client.get("assigned_program") if client else None
     if old_program:
